@@ -1658,11 +1658,27 @@ function resetToDefaults() {
     renderTabs(); renderView();
 }
 
-function addNewLocation() {
-    const name = prompt('Nombre de la nueva localidad:');
+// Geocodificación automática: busca las coordenadas de una ciudad en Nominatim (OpenStreetMap)
+async function geocodeCity(name) {
+    try {
+        const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=es&q=' + encodeURIComponent(name));
+        const j = await r.json();
+        if (Array.isArray(j) && j.length) return { lat: parseFloat(j[0].lat), lon: parseFloat(j[0].lon) };
+    } catch (e) { console.error('Error de geocodificación', e); }
+    return null;
+}
+
+async function addNewLocation() {
+    const name = (prompt('Nombre de la nueva localidad:') || '').trim();
     if (!name) return;
-    S.locations[name] = { lat: 40.4168, lon: -3.7038 };
+    if (S.locations[name]) { alert('Ya existe una localidad llamada "' + name + '".'); return; }
+    showToast('Buscando coordenadas de ' + name + '…', 4000);
+    const coord = await geocodeCity(name);
+    // Si no se encuentra (o sin conexión), se usa un punto neutro editable a mano
+    S.locations[name] = coord || { lat: 40.4168, lon: -3.7038 };
     saveToFirebase(); renderView(); scheduleRouteFetch();
+    if (coord) showToast('Localidad añadida ✓ Rutas recalculadas', 2000);
+    else showToast('No se encontraron coordenadas: edítalas a mano', 3000);
 }
 
 function locationDelete(city) {
@@ -1690,6 +1706,15 @@ function renameLocation(oldCity, newCity) {
         if (cr.to === oldCity) cr.to = newCity;
     });
     saveToFirebase(); renderView(); scheduleRouteFetch();
+    // Si el nuevo nombre es otra ciudad, buscar sus coordenadas y recalcular rutas
+    geocodeCity(newCity).then(c => {
+        if (c && S.locations[newCity]) {
+            S.locations[newCity] = c;
+            weatherFetched = false; routesFetched = false;
+            saveToFirebase();
+            if (activeTab === 'routes') { routesFetched = true; fetchRoutes(); }
+        }
+    });
 }
 
 /* ======================================================================
