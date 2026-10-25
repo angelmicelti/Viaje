@@ -21,41 +21,52 @@ con las reglas actuales y mostrará un aviso si en algún momento se queda sin p
 
 ## Paso 2 — Publicar las reglas (protegen SOLO el nodo `viajePlanner`)
 
-1. Consola → **Realtime Database** → pestaña **Reglas**.
-2. **NO borres las reglas existentes** (las otras apps las necesitan). Añade el bloque
-   `viajePlanner` dentro de `"rules"`, junto a las demás claves. Ejemplo con la configuración
-   abierta habitual:
+1. Consola de Firebase → **Realtime Database** (la instancia `arduinoblocks01-default-rtdb`,
+   europe-west1 — no Cloud Firestore, que es otro producto) → pestaña **Reglas**.
+
+2. **Opción A — la más fácil: sustituye TODO el contenido del editor** por este bloque y
+   pulsa **Publicar**. La raíz queda abierta como hasta ahora (las otras apps siguen
+   igual) y `viajePlanner` pasa a exigir sesión (la app la inicia automáticamente):
 
 ```json
 {
   "rules": {
-    "...tus reglas actuales para otras apps...": {},
-
+    ".read": true,
+    ".write": true,
     "viajePlanner": {
       ".read": "auth != null",
-      ".write": "auth != null",
-      "activeTripId": {
-        ".validate": "newData.isString()"
-      },
-      "trips": {
-        "$tripId": {
-          ".validate": "newData.hasChildren(['id', 'data'])",
-          "id":        { ".validate": "newData.isString()" },
-          "createdAt": { ".validate": "newData.isString()" },
-          "startDate": { ".validate": "newData.isString()" },
-          "endDate":   { ".validate": "newData.isString()" },
-          "source":    { ".validate": "newData.isString()" },
-          "data": {
-            ".validate": "newData.hasChildren(['config', 'locations', 'accommodations', 'reservations', 'travelPlan'])"
-          }
-        }
+      ".write": "auth != null"
+    }
+  }
+}
+```
+
+3. **Opción B — solo si tus reglas actuales tienen más contenido**: no las borres; añade
+   únicamente la clave `viajePlanner` dentro de `"rules"`, junto a las demás (versión con
+   validación de la estructura de datos):
+
+```json
+"viajePlanner": {
+  ".read": "auth != null",
+  ".write": "auth != null",
+  "activeTripId": { ".validate": "newData.isString()" },
+  "trips": {
+    "$tripId": {
+      ".validate": "newData.hasChildren(['id', 'data'])",
+      "id":        { ".validate": "newData.isString()" },
+      "createdAt": { ".validate": "newData.isString()" },
+      "startDate": { ".validate": "newData.isString()" },
+      "endDate":   { ".validate": "newData.isString()" },
+      "source":    { ".validate": "newData.isString()" },
+      "data": {
+        ".validate": "newData.hasChildren(['config', 'locations', 'accommodations', 'reservations', 'travelPlan'])"
       }
     }
   }
 }
 ```
 
-3. Publica (**Publish**).
+4. **Pulsa Publicar** (sin ese botón, el cambio no surte efecto aunque el editor lo muestre).
 
 Qué consiguen estas reglas:
 - **`.read` / `.write` = `auth != null`**: solo clientes autenticados de este proyecto (la app
