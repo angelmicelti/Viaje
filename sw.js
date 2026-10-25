@@ -6,7 +6,7 @@
    - Las APIs de datos (Firebase RTDB, Open-Meteo, OSRM) van siempre a la red
    Para publicar una versión nueva, cambia VERSION (p. ej. v2, v3…).
    ====================================================================== */
-const VERSION = 'v1.18';
+const VERSION = 'v1.19';
 const CACHE_STATIC = 'miviaje-static-' + VERSION;
 const CACHE_RUNTIME = 'miviaje-runtime-' + VERSION;
 const APP_SHELL = './index.html';
