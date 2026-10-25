@@ -1209,16 +1209,21 @@ let routeFetchTimer = null;
 
 // Helper: pide a OSRM la distancia y duración en coche entre dos coordenadas
 async function fetchRouteLeg(c1, c2) {
-    if (!c1 || !c2) return { distance: '-- km', duration: '--' };
+    // Sin coordenadas, o dos puntos idénticos: OSRM devolvería 0 km sin sentido
+    if (!c1 || !c2 || (Math.abs(c1.lat - c2.lat) < 1e-6 && Math.abs(c1.lon - c2.lon) < 1e-6)) {
+        return { distance: '-- km', duration: '--' };
+    }
     try {
         const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${c1.lon},${c1.lat};${c2.lon},${c2.lat}?overview=false`);
         const j = await r.json();
         if (j.code === 'Ok' && j.routes.length) {
-            const dist = (j.routes[0].distance/1000).toFixed(0) + ' km';
+            const m = j.routes[0].distance;
+            if (!m || m < 100) return { distance: '-- km', duration: '--' };
+            const dist = (m/1000).toFixed(0) + ' km';
             const s = j.routes[0].duration;
             const h = Math.floor(s / 3600);
-            const m = Math.round((s % 3600) / 60);
-            return { distance: dist, duration: h + 'h ' + m + 'm' };
+            const mm = Math.round((s % 3600) / 60);
+            return { distance: dist, duration: h + 'h ' + mm + 'm' };
         }
     } catch (e) { console.error('OSRM error', e); }
     return { distance: '-- km', duration: '--' };
@@ -1232,6 +1237,19 @@ async function fetchRoutes() {
         // Etapas reales: cada cambio de localidad en el plan (incluye el regreso al origen)
         const stops = [];
         S.travelPlan.forEach(d => { if (d.location && stops[stops.length - 1] !== d.location) stops.push(d.location); });
+        // Auto-reparación: ciudades sin coordenadas o con las de respaldo (geocodificación fallida)
+        let coordsRepaired = false;
+        for (const loc of new Set(stops)) {
+            const c = S.locations[loc];
+            if (!c || isPlaceholderCoord(c)) {
+                const g = await geocodeCity(loc);
+                if (g) { S.locations[loc] = g; coordsRepaired = true; }
+            }
+        }
+        if (coordsRepaired) {
+            weatherFetched = false;
+            saveToFirebase();
+        }
         routeLegs = [];
         for (let i = 0; i < stops.length - 1; i++) {
             const c1 = S.locations[stops[i]], c2 = S.locations[stops[i+1]];
@@ -1658,13 +1676,26 @@ function resetToDefaults() {
     renderTabs(); renderView();
 }
 
-// Geocodificación automática: busca las coordenadas de una ciudad en Nominatim (OpenStreetMap)
+// Coordenadas neutras que se asignan cuando la geocodificación falla
+const FALLBACK_COORD = { lat: 40.4168, lon: -3.7038 };
+function isPlaceholderCoord(c) {
+    return !!c && Math.abs(c.lat - FALLBACK_COORD.lat) < 1e-6 && Math.abs(c.lon - FALLBACK_COORD.lon) < 1e-6;
+}
+
+// Geocodificación automática: busca las coordenadas de una ciudad.
+// Primer intento en Nominatim (OpenStreetMap); si falla, en Open-Meteo.
 async function geocodeCity(name) {
     try {
         const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=es&q=' + encodeURIComponent(name));
         const j = await r.json();
         if (Array.isArray(j) && j.length) return { lat: parseFloat(j[0].lat), lon: parseFloat(j[0].lon) };
-    } catch (e) { console.error('Error de geocodificación', e); }
+    } catch (e) { console.error('Error de geocodificación (Nominatim)', e); }
+    try {
+        const r = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=es&format=json&name=' + encodeURIComponent(name));
+        const j = await r.json();
+        const hit = j && Array.isArray(j.results) && j.results[0];
+        if (hit) return { lat: hit.latitude, lon: hit.longitude };
+    } catch (e) { console.error('Error de geocodificación (Open-Meteo)', e); }
     return null;
 }
 
@@ -1675,10 +1706,10 @@ async function addNewLocation() {
     showToast('Buscando coordenadas de ' + name + '…', 4000);
     const coord = await geocodeCity(name);
     // Si no se encuentra (o sin conexión), se usa un punto neutro editable a mano
-    S.locations[name] = coord || { lat: 40.4168, lon: -3.7038 };
+    S.locations[name] = coord || { lat: FALLBACK_COORD.lat, lon: FALLBACK_COORD.lon };
     saveToFirebase(); renderView(); scheduleRouteFetch();
     if (coord) showToast('Localidad añadida ✓ Rutas recalculadas', 2000);
-    else showToast('No se encontraron coordenadas: edítalas a mano', 3000);
+    else showToast('Sin coordenadas: se buscarán al calcular las rutas', 3000);
 }
 
 function locationDelete(city) {
