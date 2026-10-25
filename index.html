@@ -416,7 +416,8 @@ const DEFAULTS = {
             { id: "cw", title: "Clima en Vivo", description: "Consulta las temperaturas, viento y precipitaciones de cada ciudad en la fecha exacta de tu llegada.", color: "blue", targetTab: "weather" },
             { id: "cr", title: "Mis Rutas", description: "Calcula la distancia y el tiempo estimado de viaje en coche entre las distintas etapas de tu aventura.", color: "emerald", targetTab: "routes" },
             { id: "ca", title: "Alojamientos", description: "Ten a mano los nombres, direcciones y teléfonos de contacto de los hoteles donde te hospedarás.", color: "purple", targetTab: "accom" }
-        ]
+        ],
+        customRoutes: []
     },
     locations: {
         "Palma del Río": { lat: 37.7009, lon: -5.2851 },
@@ -564,7 +565,8 @@ function defaultTripData(name, start, end) {
             mapUrl: (S && S.config && S.config.mapUrl) || DEFAULTS.config.mapUrl,
             itineraryText: '',
             tabs: JSON.parse(JSON.stringify(DEFAULTS.config.tabs)),
-            homeCards: JSON.parse(JSON.stringify(DEFAULTS.config.homeCards))
+            homeCards: JSON.parse(JSON.stringify(DEFAULTS.config.homeCards)),
+            customRoutes: []
         },
         locations: {},
         accommodations: [],
@@ -582,6 +584,7 @@ function normalizeTripData(data) {
     if (!d.config) d.config = {};
     if (!Array.isArray(d.config.tabs)) d.config.tabs = Object.values(d.config.tabs || {});
     if (!Array.isArray(d.config.homeCards)) d.config.homeCards = Object.values(d.config.homeCards || {});
+    if (!Array.isArray(d.config.customRoutes)) d.config.customRoutes = Object.values(d.config.customRoutes || {});
     return d;
 }
 
@@ -933,6 +936,7 @@ function saveEditModal() {
         if (idx === -1) S.travelPlan.push(day);
         else S.travelPlan[idx] = day;
         weatherFetched = false; routesFetched = false;
+        scheduleRouteFetch();
     } else if (type === 'location') {
         const oldName = idx;
         const newName = (getVal('name') || '').trim() || oldName;
@@ -948,6 +952,7 @@ function saveEditModal() {
         }
         S.locations[newName] = { lat: isNaN(lat) ? 0 : lat, lon: isNaN(lon) ? 0 : lon };
         weatherFetched = false; routesFetched = false;
+        scheduleRouteFetch();
     } else if (type === 'tab') {
         S.config.tabs[idx].label = getVal('label') || 'Pestaña';
         S.config.tabs[idx].icon = getVal('icon') || 'home';
@@ -1028,7 +1033,7 @@ function renderView() {
 /* ---------- HOME ---------- */
 function addPlanDay() {
     S.travelPlan.push({ id: 't-' + uid(), location: Object.keys(S.locations)[0] || '', date: nextPlanDate() });
-    saveToFirebase(); renderView();
+    saveToFirebase(); renderView(); scheduleRouteFetch();
 }
 
 function viewHome() {
@@ -1051,19 +1056,19 @@ function viewHome() {
     // Edición en contexto: paneles desplegables siempre disponibles
     const tpRows = S.travelPlan.map((d, i) => `
         <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
-            <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; saveToFirebase()">
-            <select class="edit-input flex-1" onchange="S.travelPlan[${i}].location=this.value; saveToFirebase()">
+            <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; saveToFirebase(); scheduleRouteFetch()">
+            <select class="edit-input flex-1" onchange="S.travelPlan[${i}].location=this.value; saveToFirebase(); scheduleRouteFetch()">
                 <option value="" ${!d.location ? 'selected' : ''}>— sin asignar —</option>
                 ${Object.keys(S.locations).map(loc => `<option ${loc === d.location ? 'selected' : ''}>${esc(loc)}</option>`).join('')}
             </select>
             <button class="btn-icon btn-edit" onclick="openEditModal('planDay', ${i})" title="Editar día">${ICO.edit}</button>
-            <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); saveToFirebase(); renderView()" title="Quitar día">${ICO.trash}</button>
+            <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); saveToFirebase(); renderView(); scheduleRouteFetch()" title="Quitar día">${ICO.trash}</button>
         </div>`).join('');
 
     const locRows = Object.entries(S.locations).map(([city, coord]) => `
         <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
             <input class="edit-input !w-auto sm:w-36" value="${esc(city)}" onchange="renameLocation('${city.replace(/'/g,"\\'")}', this.value)">
-            <div class="flex flex-wrap items-center gap-2 text-sm"><span class="text-slate-400">Lat:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lat}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lat=parseFloat(this.value)||0; saveToFirebase()"><span class="text-slate-400">Lon:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lon}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lon=parseFloat(this.value)||0; saveToFirebase()"></div>
+            <div class="flex flex-wrap items-center gap-2 text-sm"><span class="text-slate-400">Lat:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lat}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lat=parseFloat(this.value)||0; saveToFirebase(); scheduleRouteFetch()"><span class="text-slate-400">Lon:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lon}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lon=parseFloat(this.value)||0; saveToFirebase(); scheduleRouteFetch()"></div>
             <button class="btn-icon btn-edit" onclick="openEditModal('location', '${city.replace(/'/g,"\\'")}')" title="Editar localidad">${ICO.edit}</button>
             <button class="btn-icon btn-delete" onclick="locationDelete('${city.replace(/'/g,"\\'")}')" title="Quitar localidad">${ICO.trash}</button>
         </div>`).join('');
@@ -1200,6 +1205,26 @@ function closeModal() { document.getElementById('info-modal').classList.add('hid
 
 /* ---------- ROUTES ---------- */
 let routesInFlight = null;
+let routeFetchTimer = null;
+
+// Helper: pide a OSRM la distancia y duración en coche entre dos coordenadas
+async function fetchRouteLeg(c1, c2) {
+    if (!c1 || !c2) return { distance: '-- km', duration: '--' };
+    try {
+        const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${c1.lon},${c1.lat};${c2.lon},${c2.lat}?overview=false`);
+        const j = await r.json();
+        if (j.code === 'Ok' && j.routes.length) {
+            const dist = (j.routes[0].distance/1000).toFixed(0) + ' km';
+            const s = j.routes[0].duration;
+            const h = Math.floor(s / 3600);
+            const m = Math.round((s % 3600) / 60);
+            return { distance: dist, duration: h + 'h ' + m + 'm' };
+        }
+    } catch (e) { console.error('OSRM error', e); }
+    return { distance: '-- km', duration: '--' };
+}
+
+// Recálculo en segundo plano de las rutas derivadas del plan
 async function fetchRoutes() {
     // Una sola ejecución a la vez (pestaña Rutas y exportar PDF pueden pedirla a la vez)
     if (routesInFlight) return routesInFlight;
@@ -1210,42 +1235,161 @@ async function fetchRoutes() {
         routeLegs = [];
         for (let i = 0; i < stops.length - 1; i++) {
             const c1 = S.locations[stops[i]], c2 = S.locations[stops[i+1]];
-            let dist = '-- km', dur = '--';
-            if (c1 && c2) {
-                try {
-                    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${c1.lon},${c1.lat};${c2.lon},${c2.lat}?overview=false`);
-                    const j = await r.json();
-                    if (j.code === 'Ok' && j.routes.length) {
-                        dist = (j.routes[0].distance/1000).toFixed(0)+' km';
-                        const s = j.routes[0].duration; const h = Math.floor(s/3600); const m = Math.round((s%3600)/60); dur = h+'h '+m+'m';
-                    }
-                } catch(e) { console.error(e); }
-            }
-            routeLegs.push({from:stops[i], to:stops[i+1], distance:dist, duration:dur});
+            const leg = await fetchRouteLeg(c1, c2);
+            routeLegs.push({ from: stops[i], to: stops[i+1], distance: leg.distance, duration: leg.duration });
         }
+        // Recalcular también las rutas personalizadas cuyas ciudades sigan existiendo
+        let customChanged = false;
+        for (const cr of (S.config.customRoutes || [])) {
+            const c1 = S.locations[cr.from], c2 = S.locations[cr.to];
+            if (!c1 || !c2) { cr.distance = '-- km'; cr.duration = '--'; customChanged = true; continue; }
+            // Solo recalcular si está vacío o si las coordenadas cambiaron
+            const leg = await fetchRouteLeg(c1, c2);
+            if (leg.distance !== cr.distance || leg.duration !== cr.duration) {
+                cr.distance = leg.distance; cr.duration = leg.duration; customChanged = true;
+            }
+        }
+        if (customChanged) saveToFirebase();
         if (activeTab === 'routes') renderView();
     })();
     try { await routesInFlight; } finally { routesInFlight = null; }
 }
 
+// Programa un recálculo automático con debounce (600ms) tras cualquier cambio en plan/locations
+function scheduleRouteFetch() {
+    if (routeFetchTimer) clearTimeout(routeFetchTimer);
+    routeFetchTimer = setTimeout(() => {
+        routeFetchTimer = null;
+        // Marca como pendiente para que la próxima vez que se abra la pestaña Rutas se vuelva a calcular
+        routesFetched = false;
+        // Si ya estamos en la pestaña Rutas, recalcula ahora mismo
+        if (activeTab === 'routes') { routesFetched = true; fetchRoutes(); }
+    }, 600);
+}
+
+// Añade una ruta personalizada (calcula distancia/duración y la guarda)
+async function addCustomRoute() {
+    const fromSel = document.getElementById('custom-route-from');
+    const toSel = document.getElementById('custom-route-to');
+    if (!fromSel || !toSel) return;
+    const from = fromSel.value, to = toSel.value;
+    if (!from || !to) { showToast('Elige origen y destino', 2000); return; }
+    if (from === to) { showToast('Origen y destino deben ser distintos', 2000); return; }
+    const c1 = S.locations[from], c2 = S.locations[to];
+    if (!c1 || !c2) { showToast('Faltan coordenadas de alguna ciudad', 2500); return; }
+    // Optimismo: inserta la entrada con placeholder mientras se calcula
+    const entry = { id: 'cr-' + uid(), from, to, distance: '…', duration: '…' };
+    S.config.customRoutes.push(entry);
+    saveToFirebase();
+    renderView();
+    // Cálculo real
+    const leg = await fetchRouteLeg(c1, c2);
+    entry.distance = leg.distance;
+    entry.duration = leg.duration;
+    saveToFirebase();
+    if (activeTab === 'routes') renderView();
+    showToast('Ruta calculada ✓', 1300);
+}
+
+function deleteCustomRoute(idx) {
+    if (idx < 0 || !S.config.customRoutes[idx]) return;
+    S.config.customRoutes.splice(idx, 1);
+    saveToFirebase();
+    renderView();
+}
+
 function viewRoutes() {
-    const stopsNow = [];
-    S.travelPlan.forEach(d => { if (d.location && stopsNow[stopsNow.length - 1] !== d.location) stopsNow.push(d.location); });
-    if (stopsNow.length < 2) return '<div class="text-center py-10"><p class="text-slate-400">Asigna localidades a tu plan de viaje (modo edición) para calcular rutas entre etapas.</p></div>';
-    if (routeLegs.length === 0) return '<div class="text-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400 mx-auto mb-4"></div><p class="text-slate-400">Calculando distancias...</p></div>';
-    const cards = routeLegs.map((l,i) => {
-        const c1 = S.locations[l.from], c2 = S.locations[l.to];
-        if (!c1 || !c2) return '';   // localidad eliminada después de calcular: se omite la etapa
-        return `<div class="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between shadow-lg fade-in cursor-pointer hover:border-emerald-400/50 transition-colors" style="animation-delay:${i*0.1}s" onclick="window.open('https://www.google.com/maps/dir/?api=1&origin=${c1?.lat},${c1?.lon}&destination=${c2?.lat},${c2?.lon}&travelmode=driving','_blank')">
-            <div class="flex items-center w-full sm:w-auto mb-4 sm:mb-0">
-                <div class="flex flex-col items-center sm:items-start"><span class="text-xl font-bold text-white">${esc(l.from)}</span><span class="text-xs text-slate-500 uppercase tracking-wider">Origen</span></div>
-                <div class="px-4 sm:px-8 flex-grow flex justify-center"><div class="flex flex-col items-center"><span class="text-emerald-400 mb-1">${ICO.arrow}</span><span class="text-emerald-300 text-sm font-semibold">${l.distance}</span></div></div>
-                <div class="flex flex-col items-center sm:items-end"><span class="text-xl font-bold text-white">${esc(l.to)}</span><span class="text-xs text-slate-500 uppercase tracking-wider">Destino</span></div>
+    const locs = Object.keys(S.locations);
+    const locOpts = locs.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+
+    // Formulario de ruta personalizada
+    const formHtml = `
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 fade-in">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="text-emerald-400">${ICO.map}</span>
+                <h3 class="text-xl font-bold text-white">Calcular ruta personalizada</h3>
             </div>
-            <div class="bg-slate-900/50 rounded-xl px-4 py-2 flex items-center space-x-2 border border-slate-700/50 w-full sm:w-auto justify-center"><span class="text-slate-400">${ICO.clock}</span><span class="text-slate-300 font-medium">Aprox. ${l.duration}</span></div>
+            <p class="text-slate-400 text-sm mb-4">Elige origen y destino entre tus localidades y pulsa <b>Calcular ruta</b>. La distancia y el tiempo en coche se calculan automáticamente.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                <div class="sm:col-span-4">
+                    <label class="block text-sm text-slate-400 mb-1">Origen</label>
+                    <select id="custom-route-from" class="edit-input">
+                        <option value="">— elegir —</option>
+                        ${locOpts}
+                    </select>
+                </div>
+                <div class="sm:col-span-4">
+                    <label class="block text-sm text-slate-400 mb-1">Destino</label>
+                    <select id="custom-route-to" class="edit-input">
+                        <option value="">— elegir —</option>
+                        ${locOpts}
+                    </select>
+                </div>
+                <div class="sm:col-span-4">
+                    <button onclick="addCustomRoute()" class="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+                        ${ICO.plus} <span>Calcular ruta</span>
+                    </button>
+                </div>
+            </div>
+        </div>`;
+
+    // Rutas personalizadas guardadas
+    const customCards = (S.config.customRoutes || []).map((cr, i) => {
+        const c1 = S.locations[cr.from], c2 = S.locations[cr.to];
+        const gmaps = (c1 && c2)
+            ? `window.open('https://www.google.com/maps/dir/?api=1&origin=${c1.lat},${c1.lon}&destination=${c2.lat},${c2.lon}&travelmode=driving','_blank')`
+            : '';
+        return `<div class="bg-white/5 border border-emerald-500/30 rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between shadow-lg fade-in cursor-pointer hover:border-emerald-400/60 transition-colors" onclick="${gmaps}">
+            <div class="flex items-center w-full sm:w-auto mb-4 sm:mb-0">
+                <div class="flex flex-col items-center sm:items-start"><span class="text-xl font-bold text-white">${esc(cr.from)}</span><span class="text-xs text-slate-500 uppercase tracking-wider">Origen</span></div>
+                <div class="px-4 sm:px-8 flex-grow flex justify-center"><div class="flex flex-col items-center"><span class="text-emerald-400 mb-1">${ICO.arrow}</span><span class="text-emerald-300 text-sm font-semibold">${esc(cr.distance)}</span></div></div>
+                <div class="flex flex-col items-center sm:items-end"><span class="text-xl font-bold text-white">${esc(cr.to)}</span><span class="text-xs text-slate-500 uppercase tracking-wider">Destino</span></div>
+            </div>
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-center">
+                <div class="bg-slate-900/50 rounded-xl px-4 py-2 flex items-center space-x-2 border border-slate-700/50"><span class="text-slate-400">${ICO.clock}</span><span class="text-slate-300 font-medium">Aprox. ${esc(cr.duration)}</span></div>
+                <button onclick="event.stopPropagation(); deleteCustomRoute(${i})" class="btn-icon btn-delete" title="Quitar ruta">${ICO.trash}</button>
+            </div>
         </div>`;
     }).join('');
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Desplazamientos y Rutas</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Cálculo de distancias en tiempo real.</p></header><div class="space-y-4 max-w-3xl mx-auto">${cards}</div></div>`;
+    const customSection = customCards
+        ? `<div class="mb-10"><h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><span class="text-emerald-400">${ICO.pin}</span> Rutas personalizadas</h3><div class="space-y-4 max-w-3xl mx-auto">${customCards}</div></div>`
+        : '';
+
+    // Rutas derivadas del plan (auto-calculadas)
+    const stopsNow = [];
+    S.travelPlan.forEach(d => { if (d.location && stopsNow[stopsNow.length - 1] !== d.location) stopsNow.push(d.location); });
+
+    let planSection = '';
+    if (stopsNow.length < 2) {
+        planSection = `<div class="text-center py-10 bg-white/5 border border-white/10 rounded-2xl"><p class="text-slate-400">Las rutas entre etapas del plan se calcularán automáticamente cuando asignes al menos dos localidades distintas.</p></div>`;
+    } else if (routeLegs.length === 0) {
+        planSection = `<div class="text-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400 mx-auto mb-4"></div><p class="text-slate-400">Calculando rutas del plan...</p></div>`;
+    } else {
+        const cards = routeLegs.map((l, i) => {
+            const c1 = S.locations[l.from], c2 = S.locations[l.to];
+            if (!c1 || !c2) return '';
+            return `<div class="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between shadow-lg fade-in cursor-pointer hover:border-emerald-400/50 transition-colors" style="animation-delay:${i*0.1}s" onclick="window.open('https://www.google.com/maps/dir/?api=1&origin=${c1?.lat},${c1?.lon}&destination=${c2?.lat},${c2?.lon}&travelmode=driving','_blank')">
+                <div class="flex items-center w-full sm:w-auto mb-4 sm:mb-0">
+                    <div class="flex flex-col items-center sm:items-start"><span class="text-xl font-bold text-white">${esc(l.from)}</span><span class="text-xs text-slate-500 uppercase tracking-wider">Origen</span></div>
+                    <div class="px-4 sm:px-8 flex-grow flex justify-center"><div class="flex flex-col items-center"><span class="text-emerald-400 mb-1">${ICO.arrow}</span><span class="text-emerald-300 text-sm font-semibold">${l.distance}</span></div></div>
+                    <div class="flex flex-col items-center sm:items-end"><span class="text-xl font-bold text-white">${esc(l.to)}</span><span class="text-xs text-slate-500 uppercase tracking-wider">Destino</span></div>
+                </div>
+                <div class="bg-slate-900/50 rounded-xl px-4 py-2 flex items-center space-x-2 border border-slate-700/50 w-full sm:w-auto justify-center"><span class="text-slate-400">${ICO.clock}</span><span class="text-slate-300 font-medium">Aprox. ${l.duration}</span></div>
+            </div>`;
+        }).join('');
+        planSection = `<div class="space-y-4 max-w-3xl mx-auto">${cards}</div>`;
+    }
+
+    return `<div class="fade-in">
+        <header class="text-center mb-8">
+            <h2 class="text-3xl font-bold text-white mb-2">Desplazamientos y Rutas</h2>
+            <p class="text-slate-400 text-sm max-w-xl mx-auto">Las rutas entre etapas del plan se calculan automáticamente al introducir las ciudades. También puedes añadir rutas personalizadas arriba.</p>
+        </header>
+        ${formHtml}
+        ${customSection}
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><span class="text-emerald-400">${ICO.map}</span> Rutas entre etapas del plan</h3>
+        ${planSection}
+    </div>`;
 }
 
 /* ---------- MAP ---------- */
@@ -1434,6 +1578,11 @@ function buildPrintDoc() {
         if (!isNaN(km)) totalKm += km;
         return { from: l.from, to: l.to, d: l.distance, t: l.duration };
     });
+    const customRows = (S.config.customRoutes || []).map(cr => {
+        const km = parseInt(cr.distance, 10);
+        if (!isNaN(km)) totalKm += km;
+        return { from: cr.from, to: cr.to, d: cr.distance, t: cr.duration };
+    });
 
     const climaRows = forecastData.filter(d => d.condition && d.condition !== 'Sin datos' && d.condition !== 'Fuera de alcance');
 
@@ -1457,7 +1606,12 @@ function buildPrintDoc() {
 
     if (cities.length) html += `<h2>Itinerario</h2><p class="pdf-chain">${cities.map(esc).join(' &nbsp;→&nbsp; ')}</p>`;
     if (planRows.length) html += `<h2>Plan de viaje</h2><table><thead><tr><th style="width:18%">Fecha</th><th style="width:22%">Día</th><th>Localidad</th></tr></thead><tbody>${planRows.map(r => `<tr><td>${r.f}</td><td>${esc(r.w)}</td><td>${esc(r.l)}</td></tr>`).join('')}</tbody></table>`;
-    if (rutaRows.length) html += `<h2>Desplazamientos</h2><table><thead><tr><th>Origen</th><th>Destino</th><th style="width:15%">Distancia</th><th style="width:15%">Duración</th></tr></thead><tbody>${rutaRows.map(r => `<tr><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td>${esc(r.d)}</td><td>${esc(r.t)}</td></tr>`).join('')}</tbody></table><p class="pdf-total">Total aproximado: ${new Intl.NumberFormat('es-ES').format(totalKm)} km</p>`;
+    if (rutaRows.length || customRows.length) {
+        html += `<h2>Desplazamientos</h2>`;
+        if (rutaRows.length) html += `<table><thead><tr><th>Origen</th><th>Destino</th><th style="width:15%">Distancia</th><th style="width:15%">Duración</th></tr></thead><tbody>${rutaRows.map(r => `<tr><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td>${esc(r.d)}</td><td>${esc(r.t)}</td></tr>`).join('')}</tbody></table>`;
+        if (customRows.length) html += `<h3 style="margin-top:4mm">Rutas personalizadas</h3><table><thead><tr><th>Origen</th><th>Destino</th><th style="width:15%">Distancia</th><th style="width:15%">Duración</th></tr></thead><tbody>${customRows.map(r => `<tr><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td>${esc(r.d)}</td><td>${esc(r.t)}</td></tr>`).join('')}</tbody></table>`;
+        html += `<p class="pdf-total">Total aproximado: ${new Intl.NumberFormat('es-ES').format(totalKm)} km</p>`;
+    }
     if (climaRows.length) html += `<h2>Previsión del tiempo</h2><table><thead><tr><th>Fecha</th><th>Localidad</th><th>Estado</th><th style="width:9%">Mín</th><th style="width:9%">Máx</th><th style="width:12%">Lluvia</th><th style="width:15%">Viento</th></tr></thead><tbody>${climaRows.map(d => { const dt = new Date(d.date + 'T00:00:00'); return `<tr><td>${dt.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</td><td>${esc(d.location)}</td><td>${esc(d.condition)}</td><td>${d.min}°</td><td>${d.max}°</td><td>${d.pop}%</td><td>${esc(d.wind)}</td></tr>`; }).join('')}</tbody></table>`;
     if (S.reservations.length) html += `<h2>Reservas y eventos</h2>${resHtml}`;
     if (S.accommodations.length) html += `<h2>Alojamientos</h2><table><thead><tr><th style="width:16%">Ciudad</th><th>Alojamiento</th><th style="width:22%">Tipo</th><th style="width:22%">Teléfono</th></tr></thead><tbody>${aloHtml}</tbody></table>`;
@@ -1508,14 +1662,18 @@ function addNewLocation() {
     const name = prompt('Nombre de la nueva localidad:');
     if (!name) return;
     S.locations[name] = { lat: 40.4168, lon: -3.7038 };
-    saveToFirebase(); renderView();
+    saveToFirebase(); renderView(); scheduleRouteFetch();
 }
 
 function locationDelete(city) {
     delete S.locations[city];
     // Los días del plan que apuntaban a esa localidad quedan sin asignar
     S.travelPlan.forEach(d => { if (d.location === city) d.location = ''; });
-    saveToFirebase(); renderView();
+    // Las rutas personalizadas que usen esa ciudad también se marcan como inválidas
+    (S.config.customRoutes || []).forEach(cr => {
+        if (cr.from === city || cr.to === city) { cr.distance = '-- km'; cr.duration = '--'; }
+    });
+    saveToFirebase(); renderView(); scheduleRouteFetch();
 }
 
 function renameLocation(oldCity, newCity) {
@@ -1526,7 +1684,12 @@ function renameLocation(oldCity, newCity) {
     delete S.locations[oldCity];
     S.locations[newCity] = coord;
     S.travelPlan.forEach(d => { if (d.location === oldCity) d.location = newCity; });
-    saveToFirebase(); renderView();
+    // Actualizar también las rutas personalizadas
+    (S.config.customRoutes || []).forEach(cr => {
+        if (cr.from === oldCity) cr.from = newCity;
+        if (cr.to === oldCity) cr.to = newCity;
+    });
+    saveToFirebase(); renderView(); scheduleRouteFetch();
 }
 
 /* ======================================================================
