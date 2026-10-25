@@ -94,6 +94,10 @@
             background: rgba(239,68,68,0.15); color: #f87171;
         }
         .btn-delete:hover { background: rgba(239,68,68,0.3); }
+        .btn-edit {
+            background: rgba(59,130,246,0.15); color: #60a5fa;
+        }
+        .btn-edit:hover { background: rgba(59,130,246,0.3); }
 
         /* ---- Tab visibility toggle ---- */
         .tab-vis { accent-color: #60a5fa; width: 18px; height: 18px; cursor: pointer; }
@@ -171,6 +175,8 @@
         html.light-mode [data-editable]:hover { outline-color: rgba(37,99,235,0.55); background: rgba(59,130,246,0.10); }
         html.light-mode .btn-add { color: #64748b; border-color: rgba(15,23,42,0.25); }
         html.light-mode .btn-add:hover { color: #0f172a; border-color: rgba(15,23,42,0.45); }
+        html.light-mode .btn-edit { background: rgba(59,130,246,0.12); color: #2563eb; }
+        html.light-mode .btn-edit:hover { background: rgba(59,130,246,0.25); }
 
         /* ==================================================================
            EXPORTACIÓN A PDF (A4) — documento de impresión
@@ -340,6 +346,25 @@
         </div>
     </div>
 
+    <!-- ============ SECTION EDIT MODAL ============ -->
+    <div id="section-edit-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeEditModal()"></div>
+        <div class="relative bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-lg max-h-[86dvh] overflow-y-auto p-6 md:p-8">
+            <button onclick="closeEditModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <div class="text-center mb-6">
+                <h3 id="section-edit-title" class="text-2xl font-bold text-white mb-1">Editar sección</h3>
+                <p id="section-edit-sub" class="text-slate-400 text-sm">Modifica los campos y pulsa Guardar.</p>
+            </div>
+            <div id="section-edit-body" class="space-y-4"></div>
+            <div class="mt-8 flex gap-3">
+                <button onclick="closeEditModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors">Cancelar</button>
+                <button onclick="saveEditModal()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-6 rounded-xl transition-colors">Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ============ LOADING SCREEN ============ -->
     <div id="loading-screen" class="min-h-screen flex items-center justify-center">
         <div class="text-center">
@@ -453,7 +478,10 @@ const ICO = {
     clock: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
     plus: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>',
     trash: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>',
-    chev: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>'
+    chev: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>',
+    edit: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>',
+    save: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+    close: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
 };
 
 const CARD_COLORS = {
@@ -653,6 +681,280 @@ function initEditables() {
 }
 
 /* ======================================================================
+   SECTION EDIT MODAL — formulario completo por sección
+   ====================================================================== */
+let editModalCtx = { type: null, idx: null };
+
+function openEditModal(type, idx) {
+    editModalCtx = { type: type, idx: idx };
+    const titles = {
+        tripInfo: 'Información del viaje',
+        homeCard: idx === -1 ? 'Nueva tarjeta de inicio' : 'Editar tarjeta de inicio',
+        planDay: idx === -1 ? 'Nuevo día de plan' : 'Editar día del plan',
+        location: 'Editar localidad',
+        tab: 'Editar pestaña',
+        reservation: idx === -1 ? 'Nueva reserva' : 'Editar reserva',
+        accommodation: idx === -1 ? 'Nuevo alojamiento' : 'Editar alojamiento'
+    };
+    const subs = {
+        tripInfo: 'Modifica los datos generales del viaje y pulsa Guardar.',
+        homeCard: 'Personaliza la apariencia y destino de esta tarjeta.',
+        planDay: 'Cambia la fecha o la localidad asignada a este día.',
+        location: 'Ajusta el nombre y las coordenadas (lat/lon) de la localidad.',
+        tab: 'Cambia la etiqueta, icono y visibilidad de la pestaña.',
+        reservation: 'Completa todos los datos de la reserva o evento.',
+        accommodation: 'Completa todos los datos del alojamiento.'
+    };
+    document.getElementById('section-edit-title').textContent = titles[type] || 'Editar';
+    document.getElementById('section-edit-sub').textContent = subs[type] || '';
+    document.getElementById('section-edit-body').innerHTML = renderEditForm(type, idx);
+    document.getElementById('section-edit-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+    document.getElementById('section-edit-modal').classList.add('hidden');
+    editModalCtx = { type: null, idx: null };
+}
+
+function addPhoneRow() {
+    const list = document.getElementById('phone-list');
+    if (!list) return;
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2';
+    div.setAttribute('data-phone-row', '');
+    div.innerHTML = `<input class="edit-input" data-field="phone" placeholder="+34 ..."><button type="button" class="btn-icon btn-delete" onclick="removePhoneRow(this)" title="Quitar teléfono">${ICO.trash}</button>`;
+    list.appendChild(div);
+    div.querySelector('input').focus();
+}
+
+function removePhoneRow(btn) {
+    const row = btn.closest('[data-phone-row]');
+    if (row) row.remove();
+}
+
+function renderEditForm(type, idx) {
+    if (type === 'tripInfo') {
+        const c = S.config;
+        return `
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Título del viaje</label>
+                <input class="edit-input" data-field="title" value="${esc(c.title)}" placeholder="p. ej. Viaje Verano 2026"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Subtítulo</label>
+                <input class="edit-input" data-field="subtitle" value="${esc(c.subtitle)}" placeholder="p. ej. Julio - Agosto"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Descripción</label>
+                <textarea class="edit-input" data-field="description" placeholder="Breve descripción del viaje">${esc(c.description)}</textarea></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Itinerario (separar ciudades con →)</label>
+                <input class="edit-input" data-field="itineraryText" value="${esc(c.itineraryText)}" placeholder="p. ej. Madrid → Ávila → Toledo"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">URL del mapa embebido</label>
+                <input class="edit-input" data-field="mapUrl" value="${esc(c.mapUrl)}" placeholder="https://www.google.com/maps/d/embed?..."></div>
+        `;
+    }
+    if (type === 'homeCard') {
+        const isNew = idx === -1;
+        const c = isNew ? { id: 'hc-' + uid(), title: '', description: '', color: 'blue', targetTab: 'weather' } : S.config.homeCards[idx];
+        const tabs = S.config.tabs.map(t => `<option value="${t.id}" ${t.id === c.targetTab ? 'selected' : ''}>${esc(t.label)}</option>`).join('');
+        return `
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Título</label>
+                <input class="edit-input" data-field="title" value="${esc(c.title)}" placeholder="p. ej. Clima en Vivo"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Descripción</label>
+                <textarea class="edit-input" data-field="description" placeholder="¿Qué hace esta tarjeta?">${esc(c.description)}</textarea></div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Color</label>
+                    <select class="edit-input" data-field="color">
+                        <option value="blue" ${c.color === 'blue' ? 'selected' : ''}>Azul</option>
+                        <option value="emerald" ${c.color === 'emerald' ? 'selected' : ''}>Esmeralda</option>
+                        <option value="purple" ${c.color === 'purple' ? 'selected' : ''}>Morado</option>
+                    </select></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Pestaña destino</label>
+                    <select class="edit-input" data-field="targetTab">${tabs}</select></div>
+            </div>
+        `;
+    }
+    if (type === 'planDay') {
+        const isNew = idx === -1;
+        const d = isNew ? { id: 't-' + uid(), location: '', date: isoLocal(new Date()) } : S.travelPlan[idx];
+        const locs = Object.keys(S.locations).map(loc => `<option ${loc === d.location ? 'selected' : ''}>${esc(loc)}</option>`).join('');
+        return `
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Fecha</label>
+                <input type="date" class="edit-input" data-field="date" value="${esc(d.date)}"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Localidad</label>
+                <select class="edit-input" data-field="location">
+                    <option value="" ${!d.location ? 'selected' : ''}>— sin asignar —</option>
+                    ${locs}
+                </select></div>
+        `;
+    }
+    if (type === 'location') {
+        const city = idx;
+        const coord = S.locations[city] || { lat: 40.4168, lon: -3.7038 };
+        return `
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Nombre de la localidad</label>
+                <input class="edit-input" data-field="name" value="${esc(city)}" placeholder="p. ej. Ávila"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Latitud</label>
+                    <input type="number" step="0.0001" class="edit-input" data-field="lat" value="${coord.lat}"></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Longitud</label>
+                    <input type="number" step="0.0001" class="edit-input" data-field="lon" value="${coord.lon}"></div>
+            </div>
+            <p class="text-xs text-slate-500">Puedes consultar las coordenadas en Google Maps: clic derecho sobre el punto y copia lat/lng.</p>
+        `;
+    }
+    if (type === 'tab') {
+        const tab = S.config.tabs[idx];
+        const icons = ['home','cloud','map','pin','calendar','building'];
+        const iconOpts = icons.map(ic => `<option value="${ic}" ${tab.icon === ic ? 'selected' : ''}>${ic}</option>`).join('');
+        return `
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Etiqueta</label>
+                <input class="edit-input" data-field="label" value="${esc(tab.label)}"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Icono</label>
+                    <select class="edit-input" data-field="icon">${iconOpts}</select></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Visible</label>
+                    <select class="edit-input" data-field="visible">
+                        <option value="true" ${tab.visible ? 'selected' : ''}>Sí</option>
+                        <option value="false" ${!tab.visible ? 'selected' : ''}>No</option>
+                    </select></div>
+            </div>
+        `;
+    }
+    if (type === 'reservation') {
+        const isNew = idx === -1;
+        const src = isNew ? { id: 'r-' + uid(), date: '', time: '12:00', title: '', location: '', note: '', phones: [''], email: '' } : JSON.parse(JSON.stringify(S.reservations[idx]));
+        const phones = (src.phones && src.phones.length ? src.phones : ['']);
+        const phoneRows = phones.map(p => `
+            <div class="flex items-center gap-2" data-phone-row>
+                <input class="edit-input" data-field="phone" value="${esc(p)}" placeholder="+34 ...">
+                <button type="button" class="btn-icon btn-delete" onclick="removePhoneRow(this)" title="Quitar teléfono">${ICO.trash}</button>
+            </div>`).join('');
+        return `
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Fecha (texto libre)</label>
+                    <input class="edit-input" data-field="date" value="${esc(src.date)}" placeholder="p. ej. 28 de julio"></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Hora</label>
+                    <input type="time" class="edit-input" data-field="time" value="${esc(src.time)}"></div>
+            </div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Título</label>
+                <input class="edit-input" data-field="title" value="${esc(src.title)}" placeholder="p. ej. Sidrería Crespo"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Dirección / ubicación</label>
+                <textarea class="edit-input" data-field="location" placeholder="Calle, número, código postal, ciudad">${esc(src.location)}</textarea></div>
+            <div>
+                <label class="block text-sm text-slate-300 mb-1 font-medium">Teléfonos</label>
+                <div id="phone-list" class="space-y-2">${phoneRows}</div>
+                <button type="button" onclick="addPhoneRow()" class="inline-flex items-center text-blue-400 bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors mt-2">${ICO.plus} <span class="ml-1">Añadir teléfono</span></button>
+            </div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Email</label>
+                <input type="email" class="edit-input" data-field="email" value="${esc(src.email)}" placeholder="correo@dominio.com"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Nota</label>
+                <textarea class="edit-input" data-field="note" placeholder="Detalles: contacto, horario, web, observaciones...">${esc(src.note)}</textarea></div>
+        `;
+    }
+    if (type === 'accommodation') {
+        const isNew = idx === -1;
+        const h = isNew ? { id: 'a-' + uid(), city: '', name: '', phone: '', type: 'Hotel' } : S.accommodations[idx];
+        return `
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Ciudad</label>
+                <input class="edit-input" data-field="city" value="${esc(h.city)}" placeholder="p. ej. Ávila"></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Nombre del alojamiento</label>
+                <input class="edit-input" data-field="name" value="${esc(h.name)}" placeholder="p. ej. Hotel Las Leyendas"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Tipo</label>
+                    <input class="edit-input" data-field="type" value="${esc(h.type)}" placeholder="Hotel, Apartamento, Posada Rural..."></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Teléfono</label>
+                    <input class="edit-input" data-field="phone" value="${esc(h.phone)}" placeholder="+34 ..."></div>
+            </div>
+        `;
+    }
+    return '<p class="text-slate-400">Tipo de sección desconocido.</p>';
+}
+
+function saveEditModal() {
+    const { type, idx } = editModalCtx;
+    const body = document.getElementById('section-edit-body');
+    if (!body) return;
+    const getVal = name => {
+        const el = body.querySelector(`[data-field="${name}"]`);
+        return el ? (el.value || '') : '';
+    };
+
+    if (type === 'tripInfo') {
+        S.config.title = getVal('title') || S.config.title;
+        S.config.subtitle = getVal('subtitle');
+        S.config.description = getVal('description');
+        S.config.itineraryText = getVal('itineraryText');
+        S.config.mapUrl = getVal('mapUrl');
+    } else if (type === 'homeCard') {
+        const card = {
+            id: idx === -1 ? 'hc-' + uid() : S.config.homeCards[idx].id,
+            title: getVal('title') || 'Sin título',
+            description: getVal('description'),
+            color: getVal('color') || 'blue',
+            targetTab: getVal('targetTab') || 'weather'
+        };
+        if (idx === -1) S.config.homeCards.push(card);
+        else S.config.homeCards[idx] = card;
+    } else if (type === 'planDay') {
+        const day = {
+            id: idx === -1 ? 't-' + uid() : S.travelPlan[idx].id,
+            date: getVal('date'),
+            location: getVal('location')
+        };
+        if (idx === -1) S.travelPlan.push(day);
+        else S.travelPlan[idx] = day;
+        weatherFetched = false; routesFetched = false;
+    } else if (type === 'location') {
+        const oldName = idx;
+        const newName = (getVal('name') || '').trim() || oldName;
+        const lat = parseFloat(getVal('lat'));
+        const lon = parseFloat(getVal('lon'));
+        if (newName !== oldName) {
+            if (S.locations[newName]) {
+                alert('Ya existe una localidad llamada "' + newName + '".');
+                return;
+            }
+            delete S.locations[oldName];
+            S.travelPlan.forEach(d => { if (d.location === oldName) d.location = newName; });
+        }
+        S.locations[newName] = { lat: isNaN(lat) ? 0 : lat, lon: isNaN(lon) ? 0 : lon };
+        weatherFetched = false; routesFetched = false;
+    } else if (type === 'tab') {
+        S.config.tabs[idx].label = getVal('label') || 'Pestaña';
+        S.config.tabs[idx].icon = getVal('icon') || 'home';
+        S.config.tabs[idx].visible = getVal('visible') === 'true';
+    } else if (type === 'reservation') {
+        const phones = Array.from(body.querySelectorAll('[data-phone-row] input'))
+            .map(el => el.value)
+            .filter(v => v && v.trim());
+        const r = {
+            id: idx === -1 ? 'r-' + uid() : S.reservations[idx].id,
+            date: getVal('date'),
+            time: getVal('time'),
+            title: getVal('title') || 'Nueva reserva',
+            location: getVal('location'),
+            note: getVal('note'),
+            phones: phones,
+            email: getVal('email')
+        };
+        if (idx === -1) S.reservations.push(r);
+        else S.reservations[idx] = r;
+    } else if (type === 'accommodation') {
+        const h = {
+            id: idx === -1 ? 'a-' + uid() : S.accommodations[idx].id,
+            city: getVal('city'),
+            name: getVal('name') || 'Nuevo alojamiento',
+            type: getVal('type') || 'Hotel',
+            phone: getVal('phone')
+        };
+        if (idx === -1) S.accommodations.push(h);
+        else S.accommodations[idx] = h;
+    }
+
+    saveToFirebase();
+    closeEditModal();
+    renderTabs();
+    renderView();
+    showToast('Guardado ✓', 1300);
+}
+
+/* ======================================================================
    TAB NAVIGATION
    ====================================================================== */
 function switchTab(id) {
@@ -699,12 +1001,14 @@ function addPlanDay() {
 function viewHome() {
     let cardsHtml = S.config.homeCards.map((c, i) => {
         const col = CARD_COLORS[c.color] || CARD_COLORS.blue;
-        return `<div onclick="switchTab('${c.targetTab}')" class="bg-gradient-to-br ${col.grad} to-slate-900/50 border ${col.border} rounded-2xl p-6 cursor-pointer hover:-translate-y-1 transition-all duration-300 shadow-xl group">
+        return `<div onclick="switchTab('${c.targetTab}')" class="bg-gradient-to-br ${col.grad} to-slate-900/50 border ${col.border} rounded-2xl p-6 cursor-pointer hover:-translate-y-1 transition-all duration-300 shadow-xl group relative">
+            <button onclick="event.stopPropagation(); openEditModal('homeCard', ${i})" class="btn-icon btn-edit absolute top-3 right-3 z-10" title="Editar tarjeta">${ICO.edit}</button>
             <div class="${col.iconBg} w-14 h-14 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><span class="${col.icon}">${c.targetTab === 'weather' ? ICO.cloud : c.targetTab === 'routes' ? ICO.map : ICO.building}</span></div>
-            <h3 data-editable="config.homeCards.${i}.title" class="text-xl font-bold text-white mb-2">${esc(c.title)}</h3>
+            <h3 data-editable="config.homeCards.${i}.title" class="text-xl font-bold text-white mb-2 pr-10">${esc(c.title)}</h3>
             <p data-editable="config.homeCards.${i}.description" data-multiline class="text-slate-400 text-sm">${esc(c.description)}</p>
         </div>`;
     }).join('');
+    const addCardBtn = `<button onclick="openEditModal('homeCard', -1)" class="btn-add" title="Añadir tarjeta">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir tarjeta</span></button>`;
 
     const cities = (S.config.itineraryText || '').split(' → ').filter(Boolean);
     const itinHtml = cities.length
@@ -719,6 +1023,7 @@ function viewHome() {
                 <option value="" ${!d.location ? 'selected' : ''}>— sin asignar —</option>
                 ${Object.keys(S.locations).map(loc => `<option ${loc === d.location ? 'selected' : ''}>${esc(loc)}</option>`).join('')}
             </select>
+            <button class="btn-icon btn-edit" onclick="openEditModal('planDay', ${i})" title="Editar día">${ICO.edit}</button>
             <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); saveToFirebase(); renderView()" title="Quitar día">${ICO.trash}</button>
         </div>`).join('');
 
@@ -726,13 +1031,17 @@ function viewHome() {
         <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
             <input class="edit-input !w-auto sm:w-36" value="${esc(city)}" onchange="renameLocation('${city.replace(/'/g,"\\'")}', this.value)">
             <div class="flex flex-wrap items-center gap-2 text-sm"><span class="text-slate-400">Lat:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lat}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lat=parseFloat(this.value)||0; saveToFirebase()"><span class="text-slate-400">Lon:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lon}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lon=parseFloat(this.value)||0; saveToFirebase()"></div>
+            <button class="btn-icon btn-edit" onclick="openEditModal('location', '${city.replace(/'/g,"\\'")}')" title="Editar localidad">${ICO.edit}</button>
             <button class="btn-icon btn-delete" onclick="locationDelete('${city.replace(/'/g,"\\'")}')" title="Quitar localidad">${ICO.trash}</button>
         </div>`).join('');
 
     const tabVis = S.config.tabs.map((tab, i) => `
         <label class="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-4 cursor-pointer hover:bg-white/10 transition-colors">
             <div class="flex items-center gap-3"><span class="text-slate-300">${ICO[tab.icon] || ICO.home}</span><span class="text-white font-medium" data-editable="config.tabs.${i}.label">${esc(tab.label)}</span></div>
-            <input type="checkbox" class="tab-vis" ${tab.visible ? 'checked' : ''} onchange="S.config.tabs[${i}].visible=this.checked; saveToFirebase(); renderTabs()">
+            <div class="flex items-center gap-2">
+                <button class="btn-icon btn-edit" onclick="openEditModal('tab', ${i})" title="Editar pestaña">${ICO.edit}</button>
+                <input type="checkbox" class="tab-vis" ${tab.visible ? 'checked' : ''} onchange="S.config.tabs[${i}].visible=this.checked; saveToFirebase(); renderTabs()">
+            </div>
         </label>`).join('');
 
     const btnAdd = 'class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"';
@@ -764,12 +1073,15 @@ function viewHome() {
 
     return `<div class="fade-in">
         <header class="text-center mt-4 sm:mt-8 mb-8 sm:mb-12">
+            <div class="flex justify-center mb-4">
+                <button onclick="openEditModal('tripInfo', 0)" class="inline-flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 px-4 py-2 rounded-xl text-sm font-medium transition-colors" title="Editar info del viaje">${ICO.edit} Editar info del viaje</button>
+            </div>
             <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 tracking-tight"><span class="text-blue-300">Viaje:&nbsp;</span><span data-editable="config.title">${esc(S.config.title)}</span></h1>
             <p data-editable="config.subtitle" class="text-blue-300 text-xl font-medium">${esc(S.config.subtitle)}</p>
             <p data-editable="config.description" data-multiline class="text-slate-400 mt-4 max-w-2xl mx-auto">${esc(S.config.description)}</p>
-            <p class="text-slate-500 text-xs mt-3">Pulsa sobre cualquier texto para editarlo. Los paneles de abajo despliegan el plan, las localidades y los ajustes.</p>
+            <p class="text-slate-500 text-xs mt-3">Pulsa sobre cualquier texto para editarlo o usa el botón de editar de cada tarjeta/sección para abrir el formulario completo.</p>
         </header>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">${cardsHtml}</div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">${cardsHtml}${addCardBtn}</div>
         <div class="mt-12 bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
             <h4 class="text-slate-300 font-semibold mb-2">El itinerario</h4>
             <p data-editable="config.itineraryText" class="text-slate-400 text-sm flex flex-wrap justify-center items-center gap-1">${itinHtml}</p>
@@ -904,7 +1216,7 @@ function viewRoutes() {
 
 /* ---------- MAP ---------- */
 function viewMap() {
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mapa del Viaje</h2></header><div class="max-w-3xl mx-auto mb-4"><label class="block text-sm text-slate-400 mb-1">URL del mapa embebido (editable):</label><input class="edit-input" value="${esc(S.config.mapUrl)}" onblur="S.config.mapUrl=this.value; saveToFirebase()"></div><div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden p-1"><iframe src="${esc(S.config.mapUrl)}" class="w-full map-h rounded-xl" style="border:0;" allowfullscreen loading="lazy"></iframe></div></div>`;
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mapa del Viaje</h2><div class="mt-2"><button onclick="openEditModal('tripInfo', 0)" class="inline-flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">${ICO.edit} Editar URL del mapa</button></div></header><div class="max-w-3xl mx-auto mb-4"><label class="block text-sm text-slate-400 mb-1">URL del mapa embebido (editable):</label><input class="edit-input" value="${esc(S.config.mapUrl)}" onblur="S.config.mapUrl=this.value; saveToFirebase()"></div><div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden p-1"><iframe src="${esc(S.config.mapUrl)}" class="w-full map-h rounded-xl" style="border:0;" allowfullscreen loading="lazy"></iframe></div></div>`;
 }
 
 /* ---------- RESERVATIONS ---------- */
@@ -933,22 +1245,24 @@ function viewReservas() {
             : `<button onclick="event.stopPropagation(); S.reservations[${ri}].email=''; saveToFirebase(); renderView()" class="inline-flex items-center text-blue-400 bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors">${ICO.plus} <span class="ml-1">Email</span></button>`;
         const noteHtml = r.note ? `<div class="mt-2 text-amber-300 text-sm bg-amber-900/20 border border-amber-500/30 rounded-lg p-2"><span data-editable="reservations.${ri}.note" data-multiline>${autolink(r.note)}</span></div>` : '';
         const delBtn = `<button onclick="event.stopPropagation(); S.reservations.splice(${ri},1); saveToFirebase(); renderView()" class="btn-icon btn-delete opacity-70 hover:opacity-100" title="Eliminar reserva">${ICO.trash}</button>`;
+        const editBtn = `<button onclick="event.stopPropagation(); openEditModal('reservation', ${ri})" class="btn-icon btn-edit opacity-70 hover:opacity-100" title="Editar reserva">${ICO.edit}</button>`;
         return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in flex flex-col cursor-pointer hover:border-amber-400/50" onclick="onReservaClick(event, ${ri})">
-            <div class="bg-amber-900/40 p-4 border-b border-white/5"><div class="flex justify-between items-center"><div class="flex items-center gap-2">${delBtn}<span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.date">${esc(r.date)}</span><span class="text-xs text-amber-300"> - </span><span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.time">${esc(r.time)}</span></div><span class="text-slate-400">${ICO.pin}</span></div><h3 class="text-lg font-bold text-white mt-1" data-editable="reservations.${ri}.title">${esc(r.title)}</h3></div>
+            <div class="bg-amber-900/40 p-4 border-b border-white/5"><div class="flex justify-between items-center"><div class="flex items-center gap-2">${editBtn}${delBtn}<span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.date">${esc(r.date)}</span><span class="text-xs text-amber-300"> - </span><span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.time">${esc(r.time)}</span></div><span class="text-slate-400">${ICO.pin}</span></div><h3 class="text-lg font-bold text-white mt-1" data-editable="reservations.${ri}.title">${esc(r.title)}</h3></div>
             <div class="p-6 flex-grow flex flex-col justify-between"><div><div class="flex items-start text-slate-300 mb-4"><span class="text-slate-400 mr-3 mt-0.5 flex-shrink-0">${ICO.building}</span><span class="text-sm" data-editable="reservations.${ri}.location">${esc(r.location) || '<i class="text-slate-500">dirección…</i>'}</span></div><div class="flex flex-wrap gap-2 mb-3 items-center">${phonesHtml}${addPhoneBtn}</div>${emailHtml}${noteHtml}</div><div class="mt-4 text-right text-amber-400 text-xs font-semibold flex items-center justify-end">Clic para abrir en Maps <span class="ml-1">${ICO.arrow}</span></div></div></div>`;
     }).join('');
-    const addBtn = `<button class="btn-add" onclick="S.reservations.push({id:'r-'+uid(),date:'Fecha',time:'00:00',title:'Nueva reserva',location:'',note:'',phones:[],email:''}); saveToFirebase(); renderView()">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir reserva</span></button>`;
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Reservas y Eventos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Pulsa cualquier texto para editarlo; toca la tarjeta para abrir la ubicación en Google Maps.</p></header><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${cards}${addBtn}</div></div>`;
+    const addBtn = `<button class="btn-add" onclick="openEditModal('reservation', -1)" title="Añadir reserva">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir reserva</span></button>`;
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Reservas y Eventos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Usa el botón <b>editar</b> de cada tarjeta para modificar todos sus campos; toca la tarjeta para abrir la ubicación en Google Maps.</p></header><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${cards}${addBtn}</div></div>`;
 }
 
 /* ---------- ACCOMMODATIONS ---------- */
 function viewAccom() {
     const cards = S.accommodations.map((h, hi) => {
         const delBtn = `<button onclick="S.accommodations.splice(${hi},1); saveToFirebase(); renderView()" class="btn-icon btn-delete opacity-70 hover:opacity-100" title="Eliminar alojamiento">${ICO.trash}</button>`;
-        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span>${delBtn}</div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name)}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-4"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div><div class="flex items-center text-white font-medium flex-wrap gap-2"><span class="text-emerald-400 mr-1">${ICO.phone}</span><span data-editable="accommodations.${hi}.phone">${esc(h.phone) || '<i class="text-slate-500">teléfono…</i>'}</span>${h.phone ? `<a href="tel:${esc(h.phone.replace(/ /g, ''))}" class="text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}</div></div></div>`;
+        const editBtn = `<button onclick="openEditModal('accommodation', ${hi})" class="btn-icon btn-edit opacity-70 hover:opacity-100" title="Editar alojamiento">${ICO.edit}</button>`;
+        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span><div class="flex items-center gap-2">${editBtn}${delBtn}</div></div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name)}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-4"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div><div class="flex items-center text-white font-medium flex-wrap gap-2"><span class="text-emerald-400 mr-1">${ICO.phone}</span><span data-editable="accommodations.${hi}.phone">${esc(h.phone) || '<i class="text-slate-500">teléfono…</i>'}</span>${h.phone ? `<a href="tel:${esc(h.phone.replace(/ /g, ''))}" class="text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}</div></div></div>`;
     }).join('');
-    const addBtn = `<button class="btn-add" onclick="S.accommodations.push({id:'a-'+uid(),city:'Nueva ciudad',name:'Nuevo alojamiento',phone:'',type:'Hotel'}); saveToFirebase(); renderView()">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir alojamiento</span></button>`;
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Alojamientos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Pulsa cualquier texto para editarlo.</p></header><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}${addBtn}</div></div>`;
+    const addBtn = `<button class="btn-add" onclick="openEditModal('accommodation', -1)" title="Añadir alojamiento">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir alojamiento</span></button>`;
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Alojamientos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Usa el botón <b>editar</b> de cada tarjeta para modificar todos sus campos.</p></header><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}${addBtn}</div></div>`;
 }
 
 /* ======================================================================
