@@ -8,7 +8,7 @@ del resto de apps.
 
 ## Paso 0 — Actualizar la app (ya hecho)
 
-`Viaje2026-Configurable.html` ahora inicia sesión en Firebase con **autenticación anónima**
+`index.html` ahora inicia sesión en Firebase con **autenticación anónima**
 antes de cargar los datos. Si el proveedor anónimo aún no está activo, la app sigue funcionando
 con las reglas actuales y mostrará un aviso si en algún momento se queda sin permiso.
 

@@ -4,7 +4,7 @@
     "description": "Planifica tus viajes al detalle: clima día a día, rutas entre etapas, reservas, alojamientos y exportación a PDF.",
     "lang": "es",
     "dir": "ltr",
-    "start_url": "./Viaje2026-Configurable.html",
+    "start_url": "./",
     "scope": "./",
     "display": "standalone",
     "orientation": "any",

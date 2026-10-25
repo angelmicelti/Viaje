@@ -6,10 +6,10 @@
    - Las APIs de datos (Firebase RTDB, Open-Meteo, OSRM) van siempre a la red
    Para publicar una versión nueva, cambia VERSION (p. ej. v2, v3…).
    ====================================================================== */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE_STATIC = 'miviaje-static-' + VERSION;
 const CACHE_RUNTIME = 'miviaje-runtime-' + VERSION;
-const APP_SHELL = './Viaje2026-Configurable.html';
+const APP_SHELL = './index.html';
 const PRECACHE = [
     APP_SHELL,
     './manifest.json',
@@ -60,7 +60,7 @@ self.addEventListener('fetch', event => {
     // Solo se actualiza la caché del shell cuando la página navegada ES la app
     // (otras páginas del mismo origen, p. ej. ViajeEstatico.html, no deben pisarla).
     if (req.mode === 'navigate') {
-        const esApp = url.pathname.endsWith('Viaje2026-Configurable.html') || /\/$/.test(url.pathname);
+        const esApp = url.pathname.endsWith('index.html') || /\/$/.test(url.pathname);
         event.respondWith(
             fetch(req)
                 .then(res => {

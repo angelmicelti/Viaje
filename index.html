@@ -51,16 +51,13 @@
         }
         .fade-in { animation: fadeIn 0.4s ease-out forwards; }
 
-        /* ---- Editable fields ---- */
+        /* ---- Campos editables (edición en contexto, sin modo global) ---- */
         [data-editable] { cursor: default; transition: outline 0.15s, background 0.15s; border-radius: 6px; }
-        .edit-mode [data-editable] {
-            outline: 1px dashed rgba(96,165,250,0.4);
+        [data-editable]:hover {
+            outline: 1px dashed rgba(96,165,250,0.55);
             outline-offset: 2px;
             cursor: text;
-        }
-        .edit-mode [data-editable]:hover {
-            outline-color: rgba(96,165,250,0.8);
-            background: rgba(30,58,138,0.15);
+            background: rgba(96,165,250,0.07);
         }
         .edit-input {
             background: rgba(30,41,59,0.8);
@@ -97,15 +94,6 @@
             background: rgba(239,68,68,0.15); color: #f87171;
         }
         .btn-delete:hover { background: rgba(239,68,68,0.3); }
-
-        /* ---- Sync indicator ---- */
-        .sync-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            display: inline-block; margin-right: 6px;
-        }
-        .sync-dot.saved { background: #4ade80; }
-        .sync-dot.saving { background: #facc15; animation: pulse 0.8s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
         /* ---- Tab visibility toggle ---- */
         .tab-vis { accent-color: #60a5fa; width: 18px; height: 18px; cursor: pointer; }
@@ -180,7 +168,7 @@
         /* Estilos propios de la app */
         html.light-mode .edit-input { background: #ffffff; border-color: #cbd5e1; color: #1e293b; }
         html.light-mode .edit-input:focus { border-color: #3b82f6; }
-        html.light-mode .edit-mode [data-editable]:hover { background: rgba(59,130,246,0.10); }
+        html.light-mode [data-editable]:hover { outline-color: rgba(37,99,235,0.55); background: rgba(59,130,246,0.10); }
         html.light-mode .btn-add { color: #64748b; border-color: rgba(15,23,42,0.25); }
         html.light-mode .btn-add:hover { color: #0f172a; border-color: rgba(15,23,42,0.45); }
 
@@ -219,15 +207,22 @@
         body { -webkit-tap-highlight-color: transparent; }
         /* Zonas seguras (notch y barra inferior de iPhone; barra de tareas de Android) */
         #fab-home { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); right: calc(1.5rem + env(safe-area-inset-right, 0px)); }
-        #pdf-toast { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
+        #app-toast { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
         /* Altura del mapa: dvh corrige el vh de iOS Safari (barra del navegador) */
         .map-h { height: 70vh; height: 70dvh; }
         @media (min-width: 640px) { .map-h { height: 80vh; height: 80dvh; } }
+        /* Paneles desplegables de configuración (Inicio) */
+        .home-panel { border: 1px solid rgba(255,255,255,0.10); border-radius: 1rem; background: rgba(255,255,255,0.03); margin-top: 1.5rem; padding: 0.25rem 1rem; }
+        .home-panel summary { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; cursor: pointer; padding: 0.8rem 0.25rem; list-style: none; }
+        .home-panel summary::-webkit-details-marker { display: none; }
+        .home-panel summary .chev { color: #94a3b8; transition: transform 0.2s; flex-shrink: 0; }
+        .home-panel[open] summary .chev { transform: rotate(180deg); }
+        .home-panel[open] { padding-bottom: 1rem; }
+        html.light-mode .home-panel { background: rgba(255,255,255,0.65); border-color: rgba(15,23,42,0.10); }
         /* En pantallas táctiles: objetivos cómodos de 44px y sin zoom automático de iOS */
         @media (pointer: coarse) {
             .btn-icon { width: 44px; height: 44px; }
             .nav-tab { padding-top: 0.65rem !important; padding-bottom: 0.65rem !important; }
-            #btn-edit-toggle { padding-top: 0.65rem; padding-bottom: 0.65rem; }
             .edit-input { font-size: 16px !important; }
             .tab-vis { width: 22px; height: 22px; }
         }
@@ -256,25 +251,9 @@
                     </button>
                 </div>
                 <div id="nav-tabs" class="order-last w-full md:order-none md:w-auto flex space-x-1 md:space-x-4 overflow-x-auto no-scrollbar min-w-0 border-t border-slate-700/40 md:border-0 pt-1 pb-2 md:pb-0"></div>
-                <button id="btn-edit-toggle" onclick="toggleEditMode()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/10">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    <span class="hidden sm:inline">Editar</span>
-                </button>
             </div>
         </div>
     </nav>
-
-    <!-- ============ EDIT BANNER ============ -->
-    <div id="edit-banner" class="hidden bg-blue-600/20 border-b border-blue-500/30 px-4 py-2 text-center">
-        <p class="text-blue-300 text-sm">
-            <span class="sync-dot saved" id="sync-dot"></span>
-            Modo edición activo — haz clic en cualquier texto resaltado para editarlo. Los cambios se guardan en Firebase.
-        </p>
-        <div class="flex justify-center gap-4 mt-1">
-            <button onclick="refreshLiveData()" class="text-xs text-blue-400 hover:text-blue-300 underline">Refrescar Clima/Rutas</button>
-            <button onclick="resetToDefaults()" class="text-xs text-red-400 hover:text-red-300 underline">Restaurar originales</button>
-        </div>
-    </div>
 
     <!-- ============ MAIN CONTENT ============ -->
     <main class="flex-grow w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8" id="main-content">
@@ -324,7 +303,7 @@
 
     <!-- ============ EXPORT PDF (A4) ============ -->
     <div id="print-root"></div>
-    <div id="pdf-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-xl shadow-2xl text-sm font-medium hidden"></div>
+    <div id="app-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-xl shadow-2xl text-sm font-medium hidden"></div>
 
     <!-- ============ NEW TRIP MODAL ============ -->
     <div id="newtrip-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
@@ -453,7 +432,6 @@ let S = JSON.parse(JSON.stringify(DEFAULTS));
 let App = { trips: [], activeTripId: null };
 let lastTripId = null;
 let activeTab = "home";
-let editMode = false;
 let forecastData = [];
 let routeLegs = [];
 let weatherFetched = false;
@@ -474,7 +452,8 @@ const ICO = {
     email: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>',
     clock: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
     plus: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>',
-    trash: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>'
+    trash: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>',
+    chev: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>'
 };
 
 const CARD_COLORS = {
@@ -503,14 +482,16 @@ function getDot(obj, path) {
     return cur;
 }
 
-function showSyncSaving() {
-    const dot = document.getElementById('sync-dot');
-    if (dot) { dot.className = 'sync-dot saving'; }
+function showToast(msg, ms) {
+    const el = document.getElementById('app-toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => el.classList.add('hidden'), ms || 1800);
 }
-function showSyncSaved() {
-    const dot = document.getElementById('sync-dot');
-    if (dot) { dot.className = 'sync-dot saved'; }
-}
+function showSyncSaving() { showToast('Guardando…', 5000); }
+function showSyncSaved() { showToast('Guardado ✓', 1300); }
 
 function saveToFirebase() {
     if (!App.activeTripId) return;
@@ -634,7 +615,6 @@ function loadFromFirebase(cb) {
    ====================================================================== */
 function makeEditable(el, path, multiline) {
     el.addEventListener('click', function handler(e) {
-        if (!editMode) return;
         e.stopPropagation();
         const oldVal = getDot(S, path);
         const tag = multiline ? 'textarea' : 'input';
@@ -711,10 +691,15 @@ function renderView() {
 }
 
 /* ---------- HOME ---------- */
+function addPlanDay() {
+    S.travelPlan.push({ id: 't-' + uid(), location: Object.keys(S.locations)[0] || '', date: nextPlanDate() });
+    saveToFirebase(); renderView();
+}
+
 function viewHome() {
     let cardsHtml = S.config.homeCards.map((c, i) => {
         const col = CARD_COLORS[c.color] || CARD_COLORS.blue;
-        return `<div onclick="${editMode ? '' : "switchTab('" + c.targetTab + "')"}" class="bg-gradient-to-br ${col.grad} to-slate-900/50 border ${col.border} rounded-2xl p-6 ${editMode ? '' : 'cursor-pointer hover:-translate-y-1'} transition-all duration-300 shadow-xl group">
+        return `<div onclick="switchTab('${c.targetTab}')" class="bg-gradient-to-br ${col.grad} to-slate-900/50 border ${col.border} rounded-2xl p-6 cursor-pointer hover:-translate-y-1 transition-all duration-300 shadow-xl group">
             <div class="${col.iconBg} w-14 h-14 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><span class="${col.icon}">${c.targetTab === 'weather' ? ICO.cloud : c.targetTab === 'routes' ? ICO.map : ICO.building}</span></div>
             <h3 data-editable="config.homeCards.${i}.title" class="text-xl font-bold text-white mb-2">${esc(c.title)}</h3>
             <p data-editable="config.homeCards.${i}.description" data-multiline class="text-slate-400 text-sm">${esc(c.description)}</p>
@@ -724,63 +709,72 @@ function viewHome() {
     const cities = (S.config.itineraryText || '').split(' → ').filter(Boolean);
     const itinHtml = cities.length
         ? cities.map((city, i) => `<span class="text-white">${esc(city)}</span>${i < cities.length - 1 ? '<span class="text-blue-400 mx-1">' + ICO.arrow + '</span>' : ''}`).join('')
-        : '<span class="text-slate-500 italic">Itinerario pendiente: añade localidades en el modo edición</span>';
+        : '<span class="text-slate-500 italic">Itinerario pendiente: añade localidades en el panel de Localidades</span>';
 
-    let editPanel = '';
-    if (editMode) {
-        // Travel plan editor
-        let tpRows = S.travelPlan.map((d, i) => `
-            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
-                <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; saveToFirebase()">
-                <select class="edit-input flex-1" onchange="S.travelPlan[${i}].location=this.value; saveToFirebase()">
-                    <option value="" ${!d.location ? 'selected' : ''}>— sin asignar —</option>
-                    ${Object.keys(S.locations).map(loc => `<option ${loc === d.location ? 'selected' : ''}>${esc(loc)}</option>`).join('')}
-                </select>
-                <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); saveToFirebase(); renderView()">${ICO.trash}</button>
-            </div>`).join('');
+    // Edición en contexto: paneles desplegables siempre disponibles
+    const tpRows = S.travelPlan.map((d, i) => `
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
+            <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; saveToFirebase()">
+            <select class="edit-input flex-1" onchange="S.travelPlan[${i}].location=this.value; saveToFirebase()">
+                <option value="" ${!d.location ? 'selected' : ''}>— sin asignar —</option>
+                ${Object.keys(S.locations).map(loc => `<option ${loc === d.location ? 'selected' : ''}>${esc(loc)}</option>`).join('')}
+            </select>
+            <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); saveToFirebase(); renderView()" title="Quitar día">${ICO.trash}</button>
+        </div>`).join('');
 
-        // Locations editor
-        let locRows = Object.entries(S.locations).map(([city, coord]) => `
-            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
-                <input class="edit-input !w-auto sm:w-36" value="${esc(city)}" onchange="renameLocation('${city.replace(/'/g,"\\'")}', this.value)">
-                <div class="flex flex-wrap items-center gap-2 text-sm"><span class="text-slate-400">Lat:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lat}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lat=parseFloat(this.value)||0; saveToFirebase()"><span class="text-slate-400">Lon:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lon}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lon=parseFloat(this.value)||0; saveToFirebase()"></div>
-                <button class="btn-icon btn-delete" onclick="locationDelete('${city.replace(/'/g,"\\'")}')">${ICO.trash}</button>
-            </div>`).join('');
+    const locRows = Object.entries(S.locations).map(([city, coord]) => `
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
+            <input class="edit-input !w-auto sm:w-36" value="${esc(city)}" onchange="renameLocation('${city.replace(/'/g,"\\'")}', this.value)">
+            <div class="flex flex-wrap items-center gap-2 text-sm"><span class="text-slate-400">Lat:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lat}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lat=parseFloat(this.value)||0; saveToFirebase()"><span class="text-slate-400">Lon:</span><input type="number" step="0.0001" class="edit-input !w-24" value="${coord.lon}" onchange="S.locations['${city.replace(/'/g,"\\'")}'].lon=parseFloat(this.value)||0; saveToFirebase()"></div>
+            <button class="btn-icon btn-delete" onclick="locationDelete('${city.replace(/'/g,"\\'")}')" title="Quitar localidad">${ICO.trash}</button>
+        </div>`).join('');
 
-        // Tab visibility editor
-        let tabVis = S.config.tabs.map((tab, i) => `
-            <label class="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-4 cursor-pointer hover:bg-white/10 transition-colors">
-                <div class="flex items-center gap-3"><span class="text-slate-300">${ICO[tab.icon] || ICO.home}</span><span class="text-white font-medium" data-editable="config.tabs.${i}.label">${tab.label}</span></div>
-                <input type="checkbox" class="tab-vis" ${tab.visible ? 'checked' : ''} onchange="S.config.tabs[${i}].visible=this.checked; saveToFirebase(); renderTabs()">
-            </label>`).join('');
+    const tabVis = S.config.tabs.map((tab, i) => `
+        <label class="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-4 cursor-pointer hover:bg-white/10 transition-colors">
+            <div class="flex items-center gap-3"><span class="text-slate-300">${ICO[tab.icon] || ICO.home}</span><span class="text-white font-medium" data-editable="config.tabs.${i}.label">${esc(tab.label)}</span></div>
+            <input type="checkbox" class="tab-vis" ${tab.visible ? 'checked' : ''} onchange="S.config.tabs[${i}].visible=this.checked; saveToFirebase(); renderTabs()">
+        </label>`).join('');
 
-        editPanel = `
-        <div class="mt-12 fade-in">
-            <div class="flex items-center justify-between mb-6"><h3 class="text-2xl font-bold text-white">Plan de viaje</h3><button onclick="S.travelPlan.push({id:'t-'+uid(),location:Object.keys(S.locations)[0]||'',date:nextPlanDate()}); saveToFirebase(); renderView()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">${ICO.plus} Añadir día</button></div>
-            <div class="space-y-2 max-w-3xl mx-auto">${tpRows}</div>
+    const btnAdd = 'class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"';
+    const panels = `
+    <details class="home-panel">
+        <summary><span class="text-xl font-bold text-white">Plan de viaje</span><span class="chev">${ICO.chev}</span></summary>
+        <div class="max-w-3xl mx-auto">
+            <div class="flex justify-end mb-3"><button onclick="addPlanDay()" ${btnAdd}>${ICO.plus} Añadir día</button></div>
+            <div class="space-y-2">${tpRows}</div>
         </div>
-        <div class="mt-12">
-            <div class="flex items-center justify-between mb-6"><h3 class="text-2xl font-bold text-white">Localidades y coordenadas</h3><button onclick="addNewLocation()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">${ICO.plus} Añadir</button></div>
-            <div class="space-y-2 max-w-3xl mx-auto">${locRows}</div>
+    </details>
+    <details class="home-panel">
+        <summary><span class="text-xl font-bold text-white">Localidades y coordenadas</span><span class="chev">${ICO.chev}</span></summary>
+        <div class="max-w-3xl mx-auto">
+            <div class="flex justify-end mb-3"><button onclick="addNewLocation()" ${btnAdd}>${ICO.plus} Añadir localidad</button></div>
+            <div class="space-y-2">${locRows}</div>
         </div>
-        <div class="mt-12">
-            <h3 class="text-2xl font-bold text-white mb-6">Visibilidad de pestañas</h3>
-            <div class="max-w-md mx-auto space-y-3">${tabVis}</div>
-        </div>`;
-    }
+    </details>
+    <details class="home-panel">
+        <summary><span class="text-xl font-bold text-white">Ajustes del viaje</span><span class="chev">${ICO.chev}</span></summary>
+        <div class="max-w-md mx-auto">
+            <div class="space-y-3">${tabVis}</div>
+            <div class="flex justify-center gap-4 mt-4">
+                <button onclick="refreshLiveData()" class="text-xs text-blue-400 hover:text-blue-300 underline">Refrescar Clima/Rutas</button>
+                <button onclick="resetToDefaults()" class="text-xs text-red-400 hover:text-red-300 underline">Restaurar originales</button>
+            </div>
+        </div>
+    </details>`;
 
     return `<div class="fade-in">
         <header class="text-center mt-4 sm:mt-8 mb-8 sm:mb-12">
             <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 tracking-tight"><span class="text-blue-300">Viaje:&nbsp;</span><span data-editable="config.title">${esc(S.config.title)}</span></h1>
             <p data-editable="config.subtitle" class="text-blue-300 text-xl font-medium">${esc(S.config.subtitle)}</p>
             <p data-editable="config.description" data-multiline class="text-slate-400 mt-4 max-w-2xl mx-auto">${esc(S.config.description)}</p>
+            <p class="text-slate-500 text-xs mt-3">Pulsa sobre cualquier texto para editarlo. Los paneles de abajo despliegan el plan, las localidades y los ajustes.</p>
         </header>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">${cardsHtml}</div>
         <div class="mt-12 bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
             <h4 class="text-slate-300 font-semibold mb-2">El itinerario</h4>
             <p data-editable="config.itineraryText" class="text-slate-400 text-sm flex flex-wrap justify-center items-center gap-1">${itinHtml}</p>
         </div>
-        ${editPanel}
+        ${panels}
     </div>`;
 }
 
@@ -910,59 +904,51 @@ function viewRoutes() {
 
 /* ---------- MAP ---------- */
 function viewMap() {
-    let urlInput = editMode ? `<div class="max-w-3xl mx-auto mb-4"><label class="block text-sm text-slate-400 mb-1">URL del mapa embebido:</label><input class="edit-input" value="${esc(S.config.mapUrl)}" onblur="S.config.mapUrl=this.value; saveToFirebase()"></div>` : '';
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mapa del Viaje</h2></header>${urlInput}<div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden p-1"><iframe src="${esc(S.config.mapUrl)}" class="w-full map-h rounded-xl" style="border:0;" allowfullscreen loading="lazy"></iframe></div></div>`;
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mapa del Viaje</h2></header><div class="max-w-3xl mx-auto mb-4"><label class="block text-sm text-slate-400 mb-1">URL del mapa embebido (editable):</label><input class="edit-input" value="${esc(S.config.mapUrl)}" onblur="S.config.mapUrl=this.value; saveToFirebase()"></div><div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden p-1"><iframe src="${esc(S.config.mapUrl)}" class="w-full map-h rounded-xl" style="border:0;" allowfullscreen loading="lazy"></iframe></div></div>`;
 }
 
 /* ---------- RESERVATIONS ---------- */
+function onReservaClick(e, ri) {
+    // La tarjeta abre Maps, salvo cuando se pulsa un control editable o un enlace
+    const t = e.target;
+    if (t.closest && t.closest('a,button,input,select,textarea,[contenteditable="true"],[data-editable]')) return;
+    const loc = S.reservations[ri] && S.reservations[ri].location;
+    if (loc) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(loc), '_blank');
+}
+
 function viewReservas() {
     const cards = S.reservations.map((r, ri) => {
-        let phonesHtml = r.phones.map((p, pi) => {
-            let phoneDisplay = editMode
-                ? `<input class="edit-input !w-auto !inline !py-0.5 !px-2" value="${esc(p)}" onblur="S.reservations[${ri}].phones[${pi}]=this.value; saveToFirebase()">`
-                : esc(p);
-            let delBtn = editMode ? `<button class="btn-icon btn-delete" onclick="event.stopPropagation(); S.reservations[${ri}].phones.splice(${pi},1); saveToFirebase(); renderView()">${ICO.trash}</button>` : '';
-            return `<span class="inline-flex items-center gap-1">${delBtn}<a href="tel:${esc(p.replace(/ /g,''))}" onclick="event.stopPropagation()" class="inline-flex items-center text-white font-medium bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors"><span class="text-emerald-400 mr-2">${ICO.phone}</span>${phoneDisplay}</a></span>`;
-        }).join('');
-        let addPhoneBtn = editMode ? `<button onclick="event.stopPropagation(); S.reservations[${ri}].phones.push(''); saveToFirebase(); renderView()" class="inline-flex items-center text-blue-400 bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors">${ICO.plus} <span class="ml-1">Teléfono</span></button>` : '';
-        let emailHtml = r.email ? `<a href="mailto:${esc(r.email)}" onclick="event.stopPropagation()" class="inline-flex items-center text-blue-300 font-medium bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors"><span class="text-blue-400 mr-2">${ICO.email}</span>${editMode ? `<input class="edit-input !w-auto !inline !py-0.5 !px-2" value="${esc(r.email)}" onblur="S.reservations[${ri}].email=this.value; saveToFirebase()">` : esc(r.email)}</a>` : (editMode ? `<button onclick="event.stopPropagation(); S.reservations[${ri}].email=''; saveToFirebase(); renderView()" class="inline-flex items-center text-blue-400 bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors">${ICO.plus} <span class="ml-1">Email</span></button>` : '');
-        let noteHtml = r.note ? `<div class="mt-2 text-amber-300 text-sm bg-amber-900/20 border border-amber-500/30 rounded-lg p-2" ${editMode ? `contenteditable="true" onblur="S.reservations[${ri}].note=this.innerText; saveToFirebase()"` : ''}>${editMode ? esc(r.note) : autolink(r.note)}</div>` : '';
-        let delBtn2 = editMode ? `<button onclick="event.stopPropagation(); S.reservations.splice(${ri},1); saveToFirebase(); renderView()" class="btn-icon btn-delete" title="Eliminar">${ICO.trash}</button>` : '';
-        let openMaps = !editMode && r.location ? `window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('${r.location.replace(/'/g,"\\'").replace(/"/g,'&quot;')}'),'_blank')` : '';
-        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in flex flex-col ${!editMode?'cursor-pointer hover:border-amber-400/50':''}" onclick="${openMaps}">
-            <div class="bg-amber-900/40 p-4 border-b border-white/5"><div class="flex justify-between items-center"><div class="flex items-center gap-2">${delBtn2}<span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.date">${esc(r.date)}</span><span class="text-xs text-amber-300"> - </span><span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.time">${esc(r.time)}</span></div><span class="text-slate-400">${ICO.pin}</span></div><h3 class="text-lg font-bold text-white mt-1" data-editable="reservations.${ri}.title">${esc(r.title)}</h3></div>
-            <div class="p-6 flex-grow flex flex-col justify-between"><div><div class="flex items-start text-slate-300 mb-4"><span class="text-slate-400 mr-3 mt-0.5 flex-shrink-0">${ICO.building}</span><span class="text-sm" data-editable="reservations.${ri}.location">${esc(r.location)}</span></div><div class="flex flex-wrap gap-2 mb-3">${phonesHtml}${addPhoneBtn}</div>${emailHtml}${noteHtml}</div>${!editMode?'<div class="mt-4 text-right text-amber-400 text-xs font-semibold flex items-center justify-end">Clic para abrir en Maps <span class="ml-1">'+ICO.arrow+'</span></div>':''}</div></div>`;
+        const phonesHtml = r.phones.map((p, pi) => `
+            <span class="inline-flex items-center gap-1">
+                <button class="btn-icon btn-delete opacity-70 hover:opacity-100" onclick="event.stopPropagation(); S.reservations[${ri}].phones.splice(${pi},1); saveToFirebase(); renderView()" title="Quitar teléfono">${ICO.trash}</button>
+                <span class="inline-flex items-center text-white font-medium bg-slate-900/50 px-3 py-1 rounded-lg">
+                    <span class="text-emerald-400 mr-2">${ICO.phone}</span>
+                    <span data-editable="reservations.${ri}.phones.${pi}">${esc(p) || '<i class="text-slate-500">teléfono…</i>'}</span>
+                    ${p ? `<a href="tel:${esc(p.replace(/ /g, ''))}" onclick="event.stopPropagation()" class="ml-2 text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}
+                </span>
+            </span>`).join('');
+        const addPhoneBtn = `<button onclick="event.stopPropagation(); S.reservations[${ri}].phones.push(''); saveToFirebase(); renderView()" class="inline-flex items-center text-blue-400 bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors">${ICO.plus} <span class="ml-1">Teléfono</span></button>`;
+        const emailHtml = r.email
+            ? `<span class="inline-flex items-center text-blue-300 font-medium bg-slate-900/50 px-2 py-1 rounded-lg"><span class="text-blue-400 mr-2">${ICO.email}</span><span data-editable="reservations.${ri}.email">${esc(r.email)}</span><a href="mailto:${esc(r.email)}" onclick="event.stopPropagation()" class="ml-2 text-xs underline hover:text-blue-200">escribir</a></span>`
+            : `<button onclick="event.stopPropagation(); S.reservations[${ri}].email=''; saveToFirebase(); renderView()" class="inline-flex items-center text-blue-400 bg-slate-900/50 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors">${ICO.plus} <span class="ml-1">Email</span></button>`;
+        const noteHtml = r.note ? `<div class="mt-2 text-amber-300 text-sm bg-amber-900/20 border border-amber-500/30 rounded-lg p-2"><span data-editable="reservations.${ri}.note" data-multiline>${autolink(r.note)}</span></div>` : '';
+        const delBtn = `<button onclick="event.stopPropagation(); S.reservations.splice(${ri},1); saveToFirebase(); renderView()" class="btn-icon btn-delete opacity-70 hover:opacity-100" title="Eliminar reserva">${ICO.trash}</button>`;
+        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in flex flex-col cursor-pointer hover:border-amber-400/50" onclick="onReservaClick(event, ${ri})">
+            <div class="bg-amber-900/40 p-4 border-b border-white/5"><div class="flex justify-between items-center"><div class="flex items-center gap-2">${delBtn}<span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.date">${esc(r.date)}</span><span class="text-xs text-amber-300"> - </span><span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.time">${esc(r.time)}</span></div><span class="text-slate-400">${ICO.pin}</span></div><h3 class="text-lg font-bold text-white mt-1" data-editable="reservations.${ri}.title">${esc(r.title)}</h3></div>
+            <div class="p-6 flex-grow flex flex-col justify-between"><div><div class="flex items-start text-slate-300 mb-4"><span class="text-slate-400 mr-3 mt-0.5 flex-shrink-0">${ICO.building}</span><span class="text-sm" data-editable="reservations.${ri}.location">${esc(r.location) || '<i class="text-slate-500">dirección…</i>'}</span></div><div class="flex flex-wrap gap-2 mb-3 items-center">${phonesHtml}${addPhoneBtn}</div>${emailHtml}${noteHtml}</div><div class="mt-4 text-right text-amber-400 text-xs font-semibold flex items-center justify-end">Clic para abrir en Maps <span class="ml-1">${ICO.arrow}</span></div></div></div>`;
     }).join('');
-    let addBtn = editMode ? `<button class="btn-add" onclick="S.reservations.push({id:'r-'+uid(),date:'Fecha',time:'00:00',title:'Nueva reserva',location:'',note:'',phones:[],email:''}); saveToFirebase(); renderView()">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir reserva</span></button>` : '';
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Reservas y Eventos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Toca cualquier tarjeta para abrir la ubicación en Google Maps.</p></header><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${cards}${addBtn}</div></div>`;
+    const addBtn = `<button class="btn-add" onclick="S.reservations.push({id:'r-'+uid(),date:'Fecha',time:'00:00',title:'Nueva reserva',location:'',note:'',phones:[],email:''}); saveToFirebase(); renderView()">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir reserva</span></button>`;
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Reservas y Eventos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Pulsa cualquier texto para editarlo; toca la tarjeta para abrir la ubicación en Google Maps.</p></header><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${cards}${addBtn}</div></div>`;
 }
 
 /* ---------- ACCOMMODATIONS ---------- */
 function viewAccom() {
     const cards = S.accommodations.map((h, hi) => {
-        let delBtn = editMode ? `<button onclick="S.accommodations.splice(${hi},1); saveToFirebase(); renderView()" class="btn-icon btn-delete" title="Eliminar">${ICO.trash}</button>` : '';
-        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span>${delBtn}</div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name)}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-4"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div><div class="flex items-center text-white font-medium"><span class="text-emerald-400 mr-3">${ICO.phone}</span>${editMode ? `<span data-editable="accommodations.${hi}.phone">${esc(h.phone)}</span>` : `<a href="tel:${esc(h.phone.replace(/ /g,''))}" class="hover:text-emerald-300 transition-colors">${esc(h.phone)}</a>`}</div></div></div>`;
+        const delBtn = `<button onclick="S.accommodations.splice(${hi},1); saveToFirebase(); renderView()" class="btn-icon btn-delete opacity-70 hover:opacity-100" title="Eliminar alojamiento">${ICO.trash}</button>`;
+        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span>${delBtn}</div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name)}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-4"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div><div class="flex items-center text-white font-medium flex-wrap gap-2"><span class="text-emerald-400 mr-1">${ICO.phone}</span><span data-editable="accommodations.${hi}.phone">${esc(h.phone) || '<i class="text-slate-500">teléfono…</i>'}</span>${h.phone ? `<a href="tel:${esc(h.phone.replace(/ /g, ''))}" class="text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}</div></div></div>`;
     }).join('');
-    let addBtn = editMode ? `<button class="btn-add" onclick="S.accommodations.push({id:'a-'+uid(),city:'Nueva ciudad',name:'Nuevo alojamiento',phone:'',type:'Hotel'}); saveToFirebase(); renderView()">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir alojamiento</span></button>` : '';
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Alojamientos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Información de contacto para tu llegada.</p></header><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}${addBtn}</div></div>`;
-}
-
-/* ======================================================================
-   EDIT MODE TOGGLE
-   ====================================================================== */
-function toggleEditMode() {
-    editMode = !editMode;
-    document.body.classList.toggle('edit-mode', editMode);
-    document.getElementById('edit-banner').classList.toggle('hidden', !editMode);
-    const btn = document.getElementById('btn-edit-toggle');
-    if (editMode) {
-        btn.className = 'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow-lg shadow-blue-500/30';
-        btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span class="hidden sm:inline">Hecho</span>';
-    } else {
-        btn.className = 'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/10';
-        btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg><span class="hidden sm:inline">Editar</span>';
-    }
-    renderView();
+    const addBtn = `<button class="btn-add" onclick="S.accommodations.push({id:'a-'+uid(),city:'Nueva ciudad',name:'Nuevo alojamiento',phone:'',type:'Hotel'}); saveToFirebase(); renderView()">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir alojamiento</span></button>`;
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Alojamientos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Pulsa cualquier texto para editarlo.</p></header><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}${addBtn}</div></div>`;
 }
 
 /* ======================================================================
@@ -1004,7 +990,7 @@ function renderTripSelector() {
         sel.appendChild(o);
     });
     const del = document.getElementById('btn-del-trip');
-    if (del) del.classList.toggle('hidden', !editMode || App.trips.length < 2);
+    if (del) del.classList.toggle('hidden', App.trips.length < 2);
 }
 
 function switchTrip(id) {
@@ -1075,13 +1061,10 @@ function fmtLong(dt) {
     return new Date(dt + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function showPdfToast(msg) {
-    const el = document.getElementById('pdf-toast');
-    el.textContent = msg;
-    el.classList.remove('hidden');
-}
+function showPdfToast(msg) { showToast(msg, 30000); }
 function hidePdfToast() {
-    document.getElementById('pdf-toast').classList.add('hidden');
+    clearTimeout(showToast._t);
+    document.getElementById('app-toast').classList.add('hidden');
 }
 
 function buildPrintDoc() {
