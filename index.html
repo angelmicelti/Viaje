@@ -297,7 +297,7 @@
     </nav>
 
     <!-- ============ MAIN CONTENT ============ -->
-    <main class="flex-grow w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8" id="main-content">
+    <main class="hidden flex-grow w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8" id="main-content">
         <!-- Dynamic content rendered by JS -->
     </main>
 
@@ -409,7 +409,7 @@
     </div>
 
     <!-- ============ LOGIN SCREEN ============ -->
-    <div id="login-screen" class="min-h-screen items-center justify-center p-4 hidden">
+    <div id="login-screen" class="min-h-screen items-start justify-center p-4 pt-[12vh] hidden">
         <div class="bg-slate-800/90 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-8">
             <div class="text-center mb-6">
                 <svg class="w-10 h-10 text-blue-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
@@ -2296,6 +2296,7 @@ function tryStart() {
 // Render de la app tras iniciar sesión (o con sesión recordada en la pestaña)
 function renderApp() {
     document.getElementById('navbar').classList.remove('hidden');
+    document.getElementById('main-content').classList.remove('hidden');
     document.body.classList.toggle('role-user', !isAdmin());
     document.getElementById('nav-appname').textContent = S.config.appName || 'MiViaje';
     renderUserChip();
