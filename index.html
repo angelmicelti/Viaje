@@ -211,9 +211,13 @@
            ================================================================== */
         html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
         body { -webkit-tap-highlight-color: transparent; }
+        /* Altura real del viewport (100vh desborda en iOS Safari) y sensación de app */
+        body { min-height: 100vh; min-height: 100dvh; overscroll-behavior-y: contain; touch-action: manipulation; }
+        /* Zona segura inferior: el contenido no queda tapado por la barra del iPhone */
+        #main-content { padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px)); }
         /* Zonas seguras (notch y barra inferior de iPhone; barra de tareas de Android) */
         #fab-home { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); right: calc(1.5rem + env(safe-area-inset-right, 0px)); }
-        #app-toast { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
+        #app-toast { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 2rem); }
         /* Altura del mapa: dvh corrige el vh de iOS Safari (barra del navegador) */
         .map-h { height: 70vh; height: 70dvh; }
         @media (min-width: 640px) { .map-h { height: 80vh; height: 80dvh; } }
@@ -232,6 +236,28 @@
             .edit-input { font-size: 16px !important; }
             .tab-vis { width: 22px; height: 22px; }
         }
+        /* Móviles estrechos: tipografía y paddings contenidos */
+        @media (max-width: 400px) {
+            #main-content h2 { font-size: 1.5rem; }
+            #main-content h1 { font-size: clamp(2rem, 9vw, 3rem); }
+            .btn-add { min-height: 150px; padding: 16px; }
+            .home-panel { padding: 0.25rem 0.6rem; }
+        }
+        /* El toast nunca sobresale del ancho de la pantalla */
+        #app-toast { left: 50%; transform: translateX(-50%); text-align: center; }
+
+        /* ==================================================================
+           LOGIN Y ROLES (admin / usuario de solo lectura)
+           ================================================================== */
+        body.role-user #main-content button,
+        body.role-user #main-content input,
+        body.role-user #main-content select,
+        body.role-user #main-content textarea { pointer-events: none; }
+        body.role-user #main-content .btn-icon,
+        body.role-user #main-content .btn-add,
+        body.role-user #main-content .btn-edit { display: none !important; }
+        body.role-user [data-editable] { cursor: default; }
+        body.role-user [data-editable]:hover { outline: none; background: transparent; }
     </style>
 </head>
 <body>
@@ -257,6 +283,12 @@
                     </button>
                     <button id="btn-del-trip" onclick="deleteActiveTrip()" title="Eliminar este viaje" class="btn-icon btn-delete hidden">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                    <button id="btn-users" onclick="openUsersModal()" title="Gestionar usuarios" class="btn-icon bg-slate-800/80 border border-slate-600 hover:border-blue-400 text-slate-300 hidden">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    </button>
+                    <button id="btn-logout" onclick="logout()" title="Cerrar sesión" class="btn-icon btn-delete">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     </button>
                 </div>
                 <div id="nav-tabs" class="order-last w-full md:order-none md:w-auto flex space-x-1 md:space-x-4 overflow-x-auto no-scrollbar min-w-0 border-t border-slate-700/40 md:border-0 pt-1 pb-2 md:pb-0"></div>
@@ -373,6 +405,59 @@
         <div class="text-center">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-400 mx-auto mb-4"></div>
             <p class="text-slate-400" id="loading-text">Conectando con Firebase...</p>
+        </div>
+    </div>
+
+    <!-- ============ LOGIN SCREEN ============ -->
+    <div id="login-screen" class="min-h-screen items-center justify-center p-4 hidden">
+        <div class="bg-slate-800/90 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-8">
+            <div class="text-center mb-6">
+                <svg class="w-10 h-10 text-blue-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                <h3 class="text-2xl font-bold text-white">MiViaje</h3>
+                <p class="text-slate-400 text-sm mt-1">Inicia sesión para continuar</p>
+            </div>
+            <div class="space-y-4">
+                <input id="lg-user" class="edit-input" placeholder="Usuario" autocomplete="username">
+                <input type="password" id="lg-pass" class="edit-input" placeholder="Contraseña" autocomplete="current-password">
+                <p id="lg-error" class="text-red-400 text-sm hidden"></p>
+                <button onclick="doLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-6 rounded-xl transition-colors">Entrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ USERS MODAL (admin) ============ -->
+    <div id="users-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeUsersModal()"></div>
+        <div class="relative bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md max-h-[86dvh] overflow-y-auto p-6 md:p-8">
+            <button onclick="closeUsersModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-white mb-1">Usuarios</h3>
+                <p class="text-slate-400 text-sm">Administra quién puede acceder y con qué nivel de permisos.</p>
+            </div>
+            <div id="users-list" class="space-y-2"></div>
+            <div id="user-form" class="hidden space-y-3 mt-4 pt-4 border-t border-white/10">
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Nombre de usuario</label>
+                    <input id="uf-name" class="edit-input" placeholder="p. ej. angel" maxlength="30"></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium" id="uf-pass-label">Contraseña</label>
+                    <input type="password" id="uf-pass" class="edit-input" placeholder="Contraseña" autocomplete="new-password"></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Repite la contraseña</label>
+                    <input type="password" id="uf-pass2" class="edit-input" placeholder="Contraseña otra vez" autocomplete="new-password"></div>
+                <div><label class="block text-sm text-slate-300 mb-1 font-medium">Nivel de permisos</label>
+                    <select id="uf-role" class="edit-input">
+                        <option value="user">Usuario (solo lectura)</option>
+                        <option value="admin">Administrador (puede editar)</option>
+                    </select></div>
+                <p id="uf-error" class="text-red-400 text-sm hidden"></p>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="hideUserForm()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded-xl transition-colors">Cancelar</button>
+                    <button onclick="saveUser()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-xl transition-colors">Guardar</button>
+                </div>
+            </div>
+            <button onclick="openUserForm(null)" class="btn-add mt-4" style="min-height:70px" title="Añadir usuario">
+                <span class="inline-flex items-center gap-2 text-sm font-medium" style="padding:0">${ICO.plus} Añadir usuario</span>
+            </button>
         </div>
     </div>
 
@@ -499,6 +584,30 @@ const CARD_COLORS = {
    ====================================================================== */
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
+// Firebase no almacena arrays/objetos vacíos (quedan como ausentes) y las reglas
+// con validación exigen que data tenga siempre sus 5 secciones. Las colecciones
+// vacías se guardan con una marca y se filtran al leer (arrFrom).
+function dataForFirebase(d) {
+    const c = JSON.parse(JSON.stringify(d));
+    const mark = { __empty: true };
+    ['accommodations', 'reservations', 'travelPlan'].forEach(k => {
+        if (Array.isArray(c[k]) && !c[k].length) c[k] = mark;
+    });
+    ['tabs', 'homeCards', 'customRoutes'].forEach(k => {
+        if (Array.isArray(c.config?.[k]) && !c.config[k].length) c.config[k] = mark;
+    });
+    if (c.locations && !Object.keys(c.locations).length) c.locations = mark;
+    return c;
+}
+
+function arrFrom(v) {
+    // Marca de colección vacía guardada por dataForFirebase
+    if (v && typeof v === 'object' && !Array.isArray(v) && v.__empty === true && Object.keys(v).length === 1) return [];
+    // Solo objetos válidos (purga booleans/null/elementos-marca arrivados de escrituras antiguas)
+    return (Array.isArray(v) ? v : Object.values(v || {}))
+        .filter(x => x && typeof x === 'object' && x.__empty !== true);
+}
+
 function saveDot(obj, path, val) {
     const keys = path.split('.');
     const last = keys.pop();
@@ -527,10 +636,14 @@ function showSyncSaved() { showToast('Guardado ✓', 1300); }
 
 function saveToFirebase() {
     if (!App.activeTripId) return;
+    if (!isAdmin()) return; // el nivel usuario es de solo lectura
     showSyncSaving();
-    db.ref(ROOT).update({ ['trips/' + App.activeTripId + '/data']: S, activeTripId: App.activeTripId })
+    db.ref(ROOT).update({ ['trips/' + App.activeTripId + '/data']: dataForFirebase(S), activeTripId: App.activeTripId })
         .then(() => showSyncSaved())
-        .catch(e => console.error('Firebase save error', e));
+        .catch(e => {
+            console.error('Firebase save error', e);
+            showToast('⚠ Error al guardar (' + (e.code || 'sin permiso') + ')', 4000);
+        });
 }
 
 function isoLocal(d) {
@@ -556,6 +669,12 @@ function monthsLabel(start, end) {
 }
 
 function defaultTripData(name, start, end) {
+    const days = eachDay(start, end).map(dt => ({ id: 't-' + uid(), location: '', date: dt }));
+    // El viaje empieza y termina siempre en la ciudad de origen
+    if (days.length) {
+        days[0].location = HOME_CITY;
+        days[days.length - 1].location = HOME_CITY;
+    }
     return {
         config: {
             appName: (S && S.config && S.config.appName) || 'MiViaje',
@@ -568,23 +687,26 @@ function defaultTripData(name, start, end) {
             homeCards: JSON.parse(JSON.stringify(DEFAULTS.config.homeCards)),
             customRoutes: []
         },
-        locations: {},
+        locations: { [HOME_CITY]: { lat: 37.7009, lon: -5.2851 } },
         accommodations: [],
         reservations: [],
-        travelPlan: eachDay(start, end).map(dt => ({ id: 't-' + uid(), location: '', date: dt }))
+        travelPlan: days
     };
 }
 
 function normalizeTripData(data) {
     const d = data || {};
-    if (!Array.isArray(d.accommodations)) d.accommodations = Object.values(d.accommodations || {});
-    if (!Array.isArray(d.reservations)) d.reservations = Object.values(d.reservations || {});
-    if (!Array.isArray(d.travelPlan)) d.travelPlan = Object.values(d.travelPlan || {});
+    // arrFrom sanea siempre (venga array u objeto de Firebase)
+    d.accommodations = arrFrom(d.accommodations);
+    d.reservations = arrFrom(d.reservations).map(r => ({ phones: [], ...r, city: r.city || '' }));
+    d.travelPlan = arrFrom(d.travelPlan);
+    if (d.locations && d.locations.__empty === true) d.locations = {};
     if (!d.locations) d.locations = {};
     if (!d.config) d.config = {};
-    if (!Array.isArray(d.config.tabs)) d.config.tabs = Object.values(d.config.tabs || {});
-    if (!Array.isArray(d.config.homeCards)) d.config.homeCards = Object.values(d.config.homeCards || {});
-    if (!Array.isArray(d.config.customRoutes)) d.config.customRoutes = Object.values(d.config.customRoutes || {});
+    d.config.tabs = arrFrom(d.config.tabs);
+    d.config.homeCards = arrFrom(d.config.homeCards);
+    d.config.customRoutes = arrFrom(d.config.customRoutes);
+    if (!d.config.mapRadii || typeof d.config.mapRadii !== 'object' || Array.isArray(d.config.mapRadii)) d.config.mapRadii = {};
     return d;
 }
 
@@ -606,6 +728,7 @@ function applyActiveTrip() {
         forecastData = []; routeLegs = [];
     }
     S = t.data;
+    syncItinerary(); // mantener el itinerario derivado coherente con el plan al cambiar de viaje
 }
 
 function buildLegacyTrip(data, startDate, endDate) {
@@ -618,15 +741,19 @@ function loadFromFirebase(cb) {
         if (!d) {
             // Primera vez: sembrar el viaje de ejemplo completo
             const dates = DEFAULTS.travelPlan.map(t => t.date).filter(Boolean).sort();
-            const trip = buildLegacyTrip(JSON.parse(JSON.stringify(DEFAULTS)), dates[0], dates[dates.length - 1]);
-            db.ref(ROOT).set({ trips: { [trip.id]: trip }, activeTripId: trip.id });
+    const trip = buildLegacyTrip(JSON.parse(JSON.stringify(DEFAULTS)), dates[0], dates[dates.length - 1]);
+    db.ref(ROOT).set({ trips: { [trip.id]: { ...trip, data: dataForFirebase(trip.data) } }, activeTripId: trip.id });
             return;
         }
         if (d.trips) {
             App.trips = Object.values(d.trips).map(normalizeTrip)
                 .sort((a, b) => (a.startDate || '9999').localeCompare(b.startDate || '9999') || (a.createdAt || '').localeCompare(b.createdAt || ''));
             if (!App.trips.length) return;
-            App.activeTripId = App.trips.some(t => t.id === d.activeTripId) ? d.activeTripId : App.trips[0].id;
+            // Respetar el viaje elegido localmente (p. ej. un usuario de solo lectura
+            // consultando otro viaje no debe ser devuelto al activo del servidor)
+            if (App.localTripId && !App.trips.some(t => t.id === App.localTripId)) App.localTripId = null;
+            const serverActive = App.trips.some(t => t.id === d.activeTripId) ? d.activeTripId : App.trips[0].id;
+            App.activeTripId = App.localTripId || serverActive;
             applyActiveTrip();
             cb();
         } else {
@@ -634,7 +761,7 @@ function loadFromFirebase(cb) {
             const data = { config: d.config, locations: d.locations, accommodations: d.accommodations, reservations: d.reservations, travelPlan: d.travelPlan };
             const dates = (d.travelPlan ? Object.values(d.travelPlan).map(t => t && t.date).filter(Boolean) : []).sort();
             const trip = buildLegacyTrip(data, dates[0], dates[dates.length - 1]);
-            db.ref(ROOT).update({ ['trips/' + trip.id]: trip, activeTripId: trip.id, config: null, locations: null, accommodations: null, reservations: null, travelPlan: null });
+            db.ref(ROOT).update({ ['trips/' + trip.id]: { ...trip, data: dataForFirebase(trip.data) }, activeTripId: trip.id, config: null, locations: null, accommodations: null, reservations: null, travelPlan: null });
             return;
         }
     }, err => {
@@ -650,6 +777,7 @@ function loadFromFirebase(cb) {
 function makeEditable(el, path, multiline) {
     el.addEventListener('click', function handler(e) {
         e.stopPropagation();
+        if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
         const oldVal = getDot(S, path);
         const tag = multiline ? 'textarea' : 'input';
         const input = document.createElement(tag);
@@ -692,6 +820,7 @@ function initEditables() {
 let editModalCtx = { type: null, idx: null };
 
 function openEditModal(type, idx) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     editModalCtx = { type: type, idx: idx };
     const titles = {
         tripInfo: 'Información del viaje',
@@ -751,8 +880,7 @@ function renderEditForm(type, idx) {
                 <input class="edit-input" data-field="subtitle" value="${esc(c.subtitle)}" placeholder="p. ej. Julio - Agosto"></div>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Descripción</label>
                 <textarea class="edit-input" data-field="description" placeholder="Breve descripción del viaje">${esc(c.description)}</textarea></div>
-            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Itinerario (separar ciudades con →)</label>
-                <input class="edit-input" data-field="itineraryText" value="${esc(c.itineraryText)}" placeholder="p. ej. Madrid → Ávila → Toledo"></div>
+            <p class="text-xs text-slate-500">El itinerario se genera automáticamente a partir de las ciudades asignadas a cada día en el plan de viaje.</p>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">URL del mapa embebido</label>
                 <input class="edit-input" data-field="mapUrl" value="${esc(c.mapUrl)}" placeholder="https://www.google.com/maps/d/embed?..."></div>
             <div class="grid grid-cols-2 gap-4">
@@ -787,15 +915,13 @@ function renderEditForm(type, idx) {
     if (type === 'planDay') {
         const isNew = idx === -1;
         const d = isNew ? { id: 't-' + uid(), location: '', date: isoLocal(new Date()) } : S.travelPlan[idx];
-        const locs = Object.keys(S.locations).map(loc => `<option ${loc === d.location ? 'selected' : ''}>${esc(loc)}</option>`).join('');
+        const dl = Object.keys(S.locations).map(loc => `<option value="${esc(loc)}">`).join('');
         return `
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Fecha</label>
                 <input type="date" class="edit-input" data-field="date" value="${esc(d.date)}"></div>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Localidad</label>
-                <select class="edit-input" data-field="location">
-                    <option value="" ${!d.location ? 'selected' : ''}>— sin asignar —</option>
-                    ${locs}
-                </select></div>
+                <input class="edit-input" data-field="location" list="cities-dl-modal" value="${esc(d.location)}" placeholder="Ciudad (si es nueva se buscarán sus coordenadas)">
+                <datalist id="cities-dl-modal">${dl}</datalist></div>
         `;
     }
     if (type === 'location') {
@@ -833,14 +959,26 @@ function renderEditForm(type, idx) {
     }
     if (type === 'reservation') {
         const isNew = idx === -1;
-        const src = isNew ? { id: 'r-' + uid(), date: '', time: '12:00', title: '', location: '', note: '', phones: [''], email: '' } : JSON.parse(JSON.stringify(S.reservations[idx]));
+        const src = isNew ? { id: 'r-' + uid(), city: '', date: '', time: '12:00', title: '', location: '', note: '', phones: [''], email: '' } : JSON.parse(JSON.stringify(S.reservations[idx]));
         const phones = (src.phones && src.phones.length ? src.phones : ['']);
         const phoneRows = phones.map(p => `
             <div class="flex items-center gap-2" data-phone-row>
                 <input class="edit-input" data-field="phone" value="${esc(p)}" placeholder="+34 ...">
                 <button type="button" class="btn-icon btn-delete" onclick="removePhoneRow(this)" title="Quitar teléfono">${ICO.trash}</button>
             </div>`).join('');
+        // Ciudades del viaje (con alojamiento, con días en el plan o con reservas previas)
+        const cities = [...new Set([
+            ...S.accommodations.map(h => h.city),
+            ...S.travelPlan.map(d => d.location),
+            ...S.reservations.map(r => r.city)
+        ].filter(Boolean))];
+        const cityOpts = cities.map(c => `<option value="${esc(c)}" ${c === src.city ? 'selected' : ''}>${esc(c)}</option>`).join('');
         return `
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Ciudad del viaje</label>
+                <select class="edit-input" data-field="city">
+                    <option value="" ${!src.city ? 'selected' : ''}>— sin ciudad —</option>
+                    ${cityOpts}
+                </select></div>
             <div class="grid grid-cols-2 gap-4">
                 <div><label class="block text-sm text-slate-300 mb-1 font-medium">Fecha (texto libre)</label>
                     <input class="edit-input" data-field="date" value="${esc(src.date)}" placeholder="p. ej. 28 de julio"></div>
@@ -899,7 +1037,7 @@ function saveEditModal() {
         S.config.title = getVal('title') || S.config.title;
         S.config.subtitle = getVal('subtitle');
         S.config.description = getVal('description');
-        S.config.itineraryText = getVal('itineraryText');
+        syncItinerary();
         S.config.mapUrl = getVal('mapUrl');
         // Actualizar fechas del viaje (en el objeto trip, no en data)
         const t = getActiveTrip();
@@ -928,13 +1066,25 @@ function saveEditModal() {
         if (idx === -1) S.config.homeCards.push(card);
         else S.config.homeCards[idx] = card;
     } else if (type === 'planDay') {
+        const newName = (getVal('location') || '').trim();
         const day = {
             id: idx === -1 ? 't-' + uid() : S.travelPlan[idx].id,
             date: getVal('date'),
-            location: getVal('location')
+            location: newName
         };
         if (idx === -1) S.travelPlan.push(day);
         else S.travelPlan[idx] = day;
+        if (newName && !S.locations[newName]) {
+            S.locations[newName] = { lat: FALLBACK_COORD.lat, lon: FALLBACK_COORD.lon };
+            geocodeCity(newName).then(c => {
+                if (c && S.locations[newName] && isPlaceholderCoord(S.locations[newName])) {
+                    S.locations[newName] = c;
+                    weatherFetched = false; routesFetched = false;
+                    saveToFirebase();
+                }
+            });
+        }
+        syncItinerary();
         weatherFetched = false; routesFetched = false;
         scheduleRouteFetch();
     } else if (type === 'location') {
@@ -963,6 +1113,7 @@ function saveEditModal() {
             .filter(v => v && v.trim());
         const r = {
             id: idx === -1 ? 'r-' + uid() : S.reservations[idx].id,
+            city: getVal('city'),
             date: getVal('date'),
             time: getVal('time'),
             title: getVal('title') || 'Nueva reserva',
@@ -1031,8 +1182,31 @@ function renderView() {
 }
 
 /* ---------- HOME ---------- */
+// Asigna la ciudad de un día: si es nueva, se añade y geocodifica automáticamente
+function setPlanDayLocation(i, name) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
+    name = (name || '').trim();
+    S.travelPlan[i].location = name;
+    if (name && !S.locations[name]) {
+        S.locations[name] = { lat: FALLBACK_COORD.lat, lon: FALLBACK_COORD.lon };
+        showToast('Buscando coordenadas de ' + name + '…', 4000);
+        geocodeCity(name).then(c => {
+            if (c && S.locations[name] && isPlaceholderCoord(S.locations[name])) {
+                S.locations[name] = c;
+                weatherFetched = false;
+                saveToFirebase();
+                if (activeTab === 'routes') { routesFetched = true; fetchRoutes(); }
+                else scheduleRouteFetch();
+            }
+        });
+    }
+    syncItinerary();
+    saveToFirebase(); renderView(); scheduleRouteFetch();
+}
+
 function addPlanDay() {
-    S.travelPlan.push({ id: 't-' + uid(), location: Object.keys(S.locations)[0] || '', date: nextPlanDate() });
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
+    S.travelPlan.push({ id: 't-' + uid(), location: '', date: nextPlanDate() });
     saveToFirebase(); renderView(); scheduleRouteFetch();
 }
 
@@ -1051,18 +1225,15 @@ function viewHome() {
     const cities = (S.config.itineraryText || '').split(' → ').filter(Boolean);
     const itinHtml = cities.length
         ? cities.map((city, i) => `<span class="text-white">${esc(city)}</span>${i < cities.length - 1 ? '<span class="text-blue-400 mx-1">' + ICO.arrow + '</span>' : ''}`).join('')
-        : '<span class="text-slate-500 italic">Itinerario pendiente: añade localidades en el panel de Localidades</span>';
+        : '<span class="text-slate-500 italic">Itinerario pendiente: asigna ciudades a los días de tu plan</span>';
 
     // Edición en contexto: paneles desplegables siempre disponibles
     const tpRows = S.travelPlan.map((d, i) => `
         <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
-            <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; saveToFirebase(); scheduleRouteFetch()">
-            <select class="edit-input flex-1" onchange="S.travelPlan[${i}].location=this.value; saveToFirebase(); scheduleRouteFetch()">
-                <option value="" ${!d.location ? 'selected' : ''}>— sin asignar —</option>
-                ${Object.keys(S.locations).map(loc => `<option ${loc === d.location ? 'selected' : ''}>${esc(loc)}</option>`).join('')}
-            </select>
+            <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; syncItinerary(); saveToFirebase(); scheduleRouteFetch()">
+            <input class="edit-input flex-1" list="cities-dl" value="${esc(d.location)}" placeholder="¿En qué ciudad estás este día?" onchange="setPlanDayLocation(${i}, this.value)">
             <button class="btn-icon btn-edit" onclick="openEditModal('planDay', ${i})" title="Editar día">${ICO.edit}</button>
-            <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); saveToFirebase(); renderView(); scheduleRouteFetch()" title="Quitar día">${ICO.trash}</button>
+            <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); syncItinerary(); saveToFirebase(); renderView(); scheduleRouteFetch()" title="Quitar día">${ICO.trash}</button>
         </div>`).join('');
 
     const locRows = Object.entries(S.locations).map(([city, coord]) => `
@@ -1084,6 +1255,7 @@ function viewHome() {
 
     const btnAdd = 'class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"';
     const panels = `
+    <datalist id="cities-dl">${Object.keys(S.locations).map(l => `<option value="${esc(l)}">`).join('')}</datalist>
     <details class="home-panel" open>
         <summary><span class="text-xl font-bold text-white">Plan de viaje</span><span class="chev">${ICO.chev}</span></summary>
         <div class="max-w-3xl mx-auto">
@@ -1114,19 +1286,18 @@ function viewHome() {
             <div class="flex justify-center mb-4">
                 <button onclick="openEditModal('tripInfo', 0)" class="inline-flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 px-4 py-2 rounded-xl text-sm font-medium transition-colors" title="Editar info del viaje">${ICO.edit} Editar info del viaje</button>
             </div>
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 tracking-tight"><span class="text-blue-300">Viaje:&nbsp;</span><span data-editable="config.title">${esc(S.config.title)}</span></h1>
+            <h1 class="font-bold text-white mb-4 tracking-tight" style="font-size: clamp(2.2rem, 9vw, 3.75rem);"><span class="text-blue-300">Viaje:&nbsp;</span><span data-editable="config.title">${esc(S.config.title)}</span></h1>
             <p data-editable="config.subtitle" class="text-blue-300 text-xl font-medium">${esc(S.config.subtitle)}</p>
             <p data-editable="config.description" data-multiline class="text-slate-400 mt-4 max-w-2xl mx-auto">${esc(S.config.description)}</p>
             <p class="text-slate-500 text-xs mt-3">Pulsa sobre cualquier texto para editarlo o usa el botón de editar de cada tarjeta/sección para abrir el formulario completo. Los paneles de abajo ya están desplegados para que veas todos los botones de edición.</p>
         </header>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">${cardsHtml}${addCardBtn}</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">${cardsHtml}${addCardBtn}</div>
         <div class="mt-12 bg-white/5 border border-white/10 rounded-2xl p-6 text-center relative">
             <button onclick="openEditModal('tripInfo', 0)" class="btn-icon btn-edit absolute top-3 right-3" title="Editar itinerario">${ICO.edit}</button>
             <h4 class="text-slate-300 font-semibold mb-2">El itinerario</h4>
-            <p data-editable="config.itineraryText" class="text-slate-400 text-sm flex flex-wrap justify-center items-center gap-1 pr-8">${itinHtml}</p>
+            <p class="text-slate-400 text-sm flex flex-wrap justify-center items-center gap-1 pr-8">${itinHtml}</p>
         </div>
-        ${panels}
-    </div>`;
+        ${panels}    </div>`;
 }
 
 /* ---------- WEATHER ---------- */
@@ -1189,7 +1360,7 @@ function viewWeather() {
         </tr>`;
     }).join('');
     return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Previsión Meteorológica</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Toca cualquier fila para más detalles.</p></header>
-    <div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden"><div class="overflow-x-auto no-scrollbar"><table class="w-full text-left border-collapse"><thead><tr class="bg-black/30 border-b border-white/10 text-xs sm:text-sm uppercase tracking-wider text-slate-300"><th class="py-4 px-4 sm:px-6 font-semibold">Fecha</th><th class="py-4 px-4 sm:px-6 font-semibold">Localidad</th><th class="py-4 px-4 sm:px-6 font-semibold hidden sm:table-cell">Estado</th><th class="py-4 px-4 sm:px-6 font-semibold text-center">T. Mín</th><th class="py-4 px-4 sm:px-6 font-semibold text-center">T. Máx</th></tr></thead><tbody class="divide-y divide-white/5 text-sm sm:text-base">${rows}</tbody></table></div></div></div>`;
+    <div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden"><div class="overflow-x-auto no-scrollbar"><table class="w-full min-w-[560px] text-left border-collapse"><thead><tr class="bg-black/30 border-b border-white/10 text-xs sm:text-sm uppercase tracking-wider text-slate-300"><th class="py-4 px-4 sm:px-6 font-semibold">Fecha</th><th class="py-4 px-4 sm:px-6 font-semibold">Localidad</th><th class="py-4 px-4 sm:px-6 font-semibold hidden sm:table-cell">Estado</th><th class="py-4 px-4 sm:px-6 font-semibold text-center">T. Mín</th><th class="py-4 px-4 sm:px-6 font-semibold text-center">T. Máx</th></tr></thead><tbody class="divide-y divide-white/5 text-sm sm:text-base">${rows}</tbody></table></div></div></div>`;
 }
 
 function openModal(i) {
@@ -1204,6 +1375,26 @@ function openModal(i) {
 function closeModal() { document.getElementById('info-modal').classList.add('hidden'); }
 
 /* ---------- ROUTES ---------- */
+// Ciudad fija de inicio y fin de todos los viajes
+const HOME_CITY = 'Palma del Río';
+
+// Etapas derivadas del plan: salida desde casa → ciudades del día a día → regreso a casa.
+// Los días se ordenan por fecha (el usuario puede cambiar fechas sin reordenar las filas).
+function planStops() {
+    const days = S.travelPlan.filter(d => d.location).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const stops = [];
+    days.forEach(d => { if (stops[stops.length - 1] !== d.location) stops.push(d.location); });
+    if (!stops.length) return [];
+    if (stops[0] !== HOME_CITY) stops.unshift(HOME_CITY);
+    if (stops[stops.length - 1] !== HOME_CITY) stops.push(HOME_CITY);
+    return stops;
+}
+
+// Itinerario derivado de las etapas (se recalcula con cada cambio en el plan)
+function syncItinerary() {
+    S.config.itineraryText = planStops().join(' → ');
+}
+
 let routesInFlight = null;
 let routeFetchTimer = null;
 
@@ -1234,9 +1425,8 @@ async function fetchRoutes() {
     // Una sola ejecución a la vez (pestaña Rutas y exportar PDF pueden pedirla a la vez)
     if (routesInFlight) return routesInFlight;
     routesInFlight = (async () => {
-        // Etapas reales: cada cambio de localidad en el plan (incluye el regreso al origen)
-        const stops = [];
-        S.travelPlan.forEach(d => { if (d.location && stops[stops.length - 1] !== d.location) stops.push(d.location); });
+        // Etapas derivadas del plan (con salida y regreso a la ciudad de origen)
+        const stops = planStops();
         // Auto-reparación: ciudades sin coordenadas o con las de respaldo (geocodificación fallida)
         let coordsRepaired = false;
         for (const loc of new Set(stops)) {
@@ -1287,6 +1477,7 @@ function scheduleRouteFetch() {
 
 // Añade una ruta personalizada (calcula distancia/duración y la guarda)
 async function addCustomRoute() {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     const fromSel = document.getElementById('custom-route-from');
     const toSel = document.getElementById('custom-route-to');
     if (!fromSel || !toSel) return;
@@ -1310,6 +1501,7 @@ async function addCustomRoute() {
 }
 
 function deleteCustomRoute(idx) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     if (idx < 0 || !S.config.customRoutes[idx]) return;
     S.config.customRoutes.splice(idx, 1);
     saveToFirebase();
@@ -1373,13 +1565,12 @@ function viewRoutes() {
         ? `<div class="mb-10"><h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><span class="text-emerald-400">${ICO.pin}</span> Rutas personalizadas</h3><div class="space-y-4 max-w-3xl mx-auto">${customCards}</div></div>`
         : '';
 
-    // Rutas derivadas del plan (auto-calculadas)
-    const stopsNow = [];
-    S.travelPlan.forEach(d => { if (d.location && stopsNow[stopsNow.length - 1] !== d.location) stopsNow.push(d.location); });
+    // Rutas derivadas del plan (auto-calculadas, con salida y regreso a casa)
+    const stopsNow = planStops();
 
     let planSection = '';
     if (stopsNow.length < 2) {
-        planSection = `<div class="text-center py-10 bg-white/5 border border-white/10 rounded-2xl"><p class="text-slate-400">Las rutas entre etapas del plan se calcularán automáticamente cuando asignes al menos dos localidades distintas.</p></div>`;
+        planSection = `<div class="text-center py-10 bg-white/5 border border-white/10 rounded-2xl"><p class="text-slate-400">Asigna ciudades a los días de tu plan (en Inicio) y las rutas se calcularán solas, con salida y regreso a ${esc(HOME_CITY)}.</p></div>`;
     } else if (routeLegs.length === 0) {
         planSection = `<div class="text-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400 mx-auto mb-4"></div><p class="text-slate-400">Calculando rutas del plan...</p></div>`;
     } else {
@@ -1401,7 +1592,7 @@ function viewRoutes() {
     return `<div class="fade-in">
         <header class="text-center mb-8">
             <h2 class="text-3xl font-bold text-white mb-2">Desplazamientos y Rutas</h2>
-            <p class="text-slate-400 text-sm max-w-xl mx-auto">Las rutas entre etapas del plan se calculan automáticamente al introducir las ciudades. También puedes añadir rutas personalizadas arriba.</p>
+            <p class="text-slate-400 text-sm max-w-xl mx-auto">Las rutas se calculan automáticamente a partir de las ciudades de cada día del plan, con salida y regreso a ${esc(HOME_CITY)}. También puedes añadir rutas personalizadas arriba.</p>
         </header>
         ${formHtml}
         ${customSection}
@@ -1411,8 +1602,74 @@ function viewRoutes() {
 }
 
 /* ---------- MAP ---------- */
+// Nivel de zoom de Google Maps que muestra aproximadamente el radio indicado
+function radiusToZoom(lat, km) {
+    const metersPerPx = 156543.03392 * Math.cos(lat * Math.PI / 180);
+    const widthPx = Math.min(window.innerWidth || 800, 900) - 80; // ancho aproximado del mapa
+    const z = Math.log2(metersPerPx * widthPx / 2 / (km * 1000));
+    return Math.max(3, Math.min(19, Math.round(z)));
+}
+
+function setCityRadius(city, val) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
+    const km = Math.max(1, Math.min(200, parseInt(val, 10) || 10));
+    if (!S.config.mapRadii || typeof S.config.mapRadii !== 'object') S.config.mapRadii = {};
+    S.config.mapRadii[city] = km;
+    saveToFirebase();
+    renderView();
+}
+
+// Guardar la URL del mapa (solo administrador)
+function saveMapUrl(v) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
+    const val = (v || '').trim();
+    if (val === (S.config.mapUrl || '')) return;
+    S.config.mapUrl = val;
+    db.ref(ROOT + '/trips/' + App.activeTripId + '/data/config/mapUrl').set(val)
+        .then(() => showToast('URL del mapa guardada ✓', 1500))
+        .catch(e => {
+            console.error('Firebase save error', e);
+            showToast('⚠ Error al guardar la URL', 3000);
+        });
+}
+
 function viewMap() {
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mapa del Viaje</h2><div class="mt-2"><button onclick="openEditModal('tripInfo', 0)" class="inline-flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">${ICO.edit} Editar URL del mapa</button></div></header><div class="max-w-3xl mx-auto mb-4"><label class="block text-sm text-slate-400 mb-1">URL del mapa embebido (editable):</label><input class="edit-input" value="${esc(S.config.mapUrl)}" onblur="S.config.mapUrl=this.value; saveToFirebase()"></div><div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden p-1"><iframe src="${esc(S.config.mapUrl)}" class="w-full map-h rounded-xl" style="border:0;" allowfullscreen loading="lazy"></iframe></div></div>`;
+    if (!S.config.mapRadii || typeof S.config.mapRadii !== 'object') S.config.mapRadii = {};
+    const radii = S.config.mapRadii;
+    const jsEsc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const cities = [...new Set(S.travelPlan.map(d => d.location).filter(Boolean))];
+    const cards = cities.map(city => {
+        const c = S.locations[city];
+        if (!c) return '';
+        const km = radii[city] || 10;
+        const z = radiusToZoom(c.lat, km);
+        const url = `https://maps.google.com/maps?q=${c.lat},${c.lon}&z=${z}&output=embed`;
+        return `<div class="bg-white/5 border border-white/10 rounded-2xl p-4 shadow-lg fade-in">
+            <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2"><span class="text-blue-400">${ICO.pin}</span> ${esc(city)}</h3>
+                <div class="flex items-center gap-2 text-sm text-slate-300">
+                    <span>Radio:</span>
+                    <input type="number" min="1" max="200" step="1" value="${km}" class="edit-input !w-20" onchange="setCityRadius('${jsEsc(city)}', this.value)" title="Radio en km alrededor del destino">
+                    <span>km</span>
+                </div>
+            </div>
+            <div class="rounded-xl overflow-hidden border border-white/10"><iframe src="${url}" class="w-full h-72 md:h-96" style="border:0" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+            <div class="flex items-center justify-between mt-2 gap-2 flex-wrap">
+                <span class="text-slate-500 text-xs">Vista en torno a ${esc(city)} con un área aproximada de ${km} km de radio.</span>
+                <a href="https://www.google.com/maps/@${c.lat},${c.lon},${z}z" target="_blank" rel="noopener" class="text-xs text-blue-400 hover:text-blue-300 underline">Abrir en Google Maps</a>
+            </div>
+        </div>`;
+    }).join('');
+    const destSection = cities.length
+        ? `<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">${cards}</div>`
+        : `<div class="text-center py-10 bg-white/5 border border-white/10 rounded-2xl"><p class="text-slate-400">Asigna ciudades al plan de viaje para ver el mapa de cada destino.</p></div>`;
+    return `<div class="fade-in">
+        <header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mapa del Viaje</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Mapa general de la ruta y, debajo, una vista de Google Maps en torno a cada destino con su radio configurable.</p></header>
+        <div class="max-w-3xl mx-auto mb-4"><label class="block text-sm text-slate-400 mb-1">URL del mapa embebido (editable):</label><input id="map-url-input" class="edit-input" value="${esc(S.config.mapUrl)}" onblur="saveMapUrl(this.value)" placeholder="https://www.google.com/maps/d/embed?..."></div>
+        <div class="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden p-1 mb-10"><iframe src="${esc(S.config.mapUrl)}" class="w-full map-h rounded-xl" style="border:0;" allowfullscreen loading="lazy"></iframe></div>
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><span class="text-blue-400">${ICO.pin}</span> Mapas por destino</h3>
+        ${destSection}
+    </div>`;
 }
 
 /* ---------- RESERVATIONS ---------- */
@@ -1426,7 +1683,7 @@ function onReservaClick(e, ri) {
 
 function viewReservas() {
     const cards = S.reservations.map((r, ri) => {
-        const phonesHtml = r.phones.map((p, pi) => `
+        const phonesHtml = (r.phones || []).map((p, pi) => `
             <span class="inline-flex items-center gap-1">
                 <button class="btn-icon btn-delete opacity-70 hover:opacity-100" onclick="event.stopPropagation(); S.reservations[${ri}].phones.splice(${pi},1); saveToFirebase(); renderView()" title="Quitar teléfono">${ICO.trash}</button>
                 <span class="inline-flex items-center text-white font-medium bg-slate-900/50 px-3 py-1 rounded-lg">
@@ -1445,20 +1702,59 @@ function viewReservas() {
         return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in flex flex-col cursor-pointer hover:border-amber-400/50" onclick="onReservaClick(event, ${ri})">
             <div class="bg-amber-900/40 p-4 border-b border-white/5"><div class="flex justify-between items-center"><div class="flex items-center gap-2">${editBtn}${delBtn}<span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.date">${esc(r.date)}</span><span class="text-xs text-amber-300"> - </span><span class="text-xs font-bold uppercase tracking-wider text-amber-300" data-editable="reservations.${ri}.time">${esc(r.time)}</span></div><span class="text-slate-400">${ICO.pin}</span></div><h3 class="text-lg font-bold text-white mt-1" data-editable="reservations.${ri}.title">${esc(r.title)}</h3></div>
             <div class="p-6 flex-grow flex flex-col justify-between"><div><div class="flex items-start text-slate-300 mb-4"><span class="text-slate-400 mr-3 mt-0.5 flex-shrink-0">${ICO.building}</span><span class="text-sm" data-editable="reservations.${ri}.location">${esc(r.location) || '<i class="text-slate-500">dirección…</i>'}</span></div><div class="flex flex-wrap gap-2 mb-3 items-center">${phonesHtml}${addPhoneBtn}</div>${emailHtml}${noteHtml}</div><div class="mt-4 text-right text-amber-400 text-xs font-semibold flex items-center justify-end">Clic para abrir en Maps <span class="ml-1">${ICO.arrow}</span></div></div></div>`;
-    }).join('');
+    });
     const addBtn = `<button class="btn-add" onclick="openEditModal('reservation', -1)" title="Añadir reserva">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir reserva</span></button>`;
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Reservas y Eventos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Usa el botón <b>editar</b> de cada tarjeta para modificar todos sus campos; toca la tarjeta para abrir la ubicación en Google Maps.</p></header><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${cards}${addBtn}</div></div>`;
+
+    // Agrupación por ciudad: primero las ciudades del viaje (orden del plan), luego el resto
+    const tripCities = [...new Set([...S.accommodations.map(h => h.city), ...S.travelPlan.map(d => d.location)].filter(Boolean))];
+    const groups = [];
+    tripCities.forEach(city => groups.push({ city, items: [] }));
+    S.reservations.forEach((r, ri) => {
+        let g = groups.find(x => x.city === r.city);
+        if (!g) { g = { city: r.city || '', items: [] }; groups.push(g); }
+        g.items.push(ri);
+    });
+    const shown = groups.filter(g => g.items.length);
+    const groupsHtml = shown.map(g => `
+        <section class="mb-10">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><span class="text-amber-400">${ICO.pin}</span> ${g.city ? esc(g.city) : '<span class="text-slate-400 italic">Sin ciudad asignada</span>'}
+                <button onclick="openEditModal('reservation', -1)" class="btn-icon btn-edit ml-2" title="Añadir reserva en esta ciudad">${ICO.plus}</button></h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">${g.items.map(ri => cards[ri]).join('')}</div>
+        </section>`).join('');
+
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Reservas y Eventos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Las reservas se organizan por ciudades del viaje. Pulsa <b>Añadir reserva</b>, elige la ciudad y completa los datos; toca una tarjeta para abrir la ubicación en Google Maps.</p></header>${groupsHtml}${addBtn}</div>`;
 }
 
 /* ---------- ACCOMMODATIONS ---------- */
+// Garantiza una tarjeta de alojamiento por cada ciudad indicada en el plan
+function syncAccommodations() {
+    // Purga de entradas inválidas (elementos null arrivados de sincronizaciones)
+    const clean = S.accommodations.filter(h => h && typeof h === 'object' && h.city != null);
+    let changed = clean.length !== S.accommodations.length;
+    S.accommodations = clean;
+    if (isAdmin()) {
+        new Set(S.travelPlan.map(d => d.location).filter(Boolean)).forEach(city => {
+            if (!S.accommodations.some(h => h.city === city)) {
+                S.accommodations.push({ id: 'a-' + uid(), city: city, name: '', phone: '', type: 'Hotel' });
+                changed = true;
+            }
+        });
+    }
+    if (changed) saveToFirebase();
+}
+
 function viewAccom() {
+    syncAccommodations();
     const cards = S.accommodations.map((h, hi) => {
         const delBtn = `<button onclick="S.accommodations.splice(${hi},1); saveToFirebase(); renderView()" class="btn-icon btn-delete opacity-70 hover:opacity-100" title="Eliminar alojamiento">${ICO.trash}</button>`;
         const editBtn = `<button onclick="openEditModal('accommodation', ${hi})" class="btn-icon btn-edit opacity-70 hover:opacity-100" title="Editar alojamiento">${ICO.edit}</button>`;
-        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span><div class="flex items-center gap-2">${editBtn}${delBtn}</div></div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name)}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-4"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div><div class="flex items-center text-white font-medium flex-wrap gap-2"><span class="text-emerald-400 mr-1">${ICO.phone}</span><span data-editable="accommodations.${hi}.phone">${esc(h.phone) || '<i class="text-slate-500">teléfono…</i>'}</span>${h.phone ? `<a href="tel:${esc(h.phone.replace(/ /g, ''))}" class="text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}</div></div></div>`;
+        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span><div class="flex items-center gap-2">${editBtn}${delBtn}</div></div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name) || '<i class="text-slate-500">nombre del alojamiento…</i>'}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-4"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div><div class="flex items-center text-white font-medium flex-wrap gap-2"><span class="text-emerald-400 mr-1">${ICO.phone}</span><span data-editable="accommodations.${hi}.phone">${esc(h.phone) || '<i class="text-slate-500">teléfono…</i>'}</span>${h.phone ? `<a href="tel:${esc(h.phone.replace(/ /g, ''))}" class="text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}</div></div></div>`;
     }).join('');
     const addBtn = `<button class="btn-add" onclick="openEditModal('accommodation', -1)" title="Añadir alojamiento">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir alojamiento</span></button>`;
-    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Alojamientos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Usa el botón <b>editar</b> de cada tarjeta para modificar todos sus campos.</p></header><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}${addBtn}</div></div>`;
+    const hint = S.accommodations.length
+        ? `<p class="text-slate-500 text-xs mt-4 text-center">Se crea una tarjeta automáticamente por cada ciudad del plan de viaje. Pulsa sobre el nombre, el tipo o el teléfono para completarla.</p>`
+        : '';
+    return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Alojamientos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Cada ciudad del plan tiene su tarjeta. Usa el botón <b>editar</b> para modificar todos sus campos.</p></header><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}${addBtn}</div>${hint}</div>`;
 }
 
 /* ======================================================================
@@ -1500,14 +1796,16 @@ function renderTripSelector() {
         sel.appendChild(o);
     });
     const del = document.getElementById('btn-del-trip');
-    if (del) del.classList.toggle('hidden', App.trips.length < 2);
+    if (del) del.classList.toggle('hidden', App.trips.length < 2 || !isAdmin());
 }
 
 function switchTrip(id) {
     if (id === App.activeTripId) return;
     App.activeTripId = id;
+    App.localTripId = id;
     applyActiveTrip();
-    db.ref(ROOT + '/activeTripId').set(id);
+    // Solo el admin cambia el viaje activo para el resto de usuarios
+    if (isAdmin()) db.ref(ROOT + '/activeTripId').set(id);
     document.getElementById('nav-appname').textContent = S.config.appName || 'MiViaje';
     switchTab(activeTab);
 }
@@ -1535,6 +1833,7 @@ function showNtError(msg) {
 }
 
 function createNewTrip() {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede crear viajes', 2500); return; }
     const name = document.getElementById('nt-name').value.trim() || 'Viaje sin nombre';
     const start = document.getElementById('nt-start').value;
     const end = document.getElementById('nt-end').value;
@@ -1543,11 +1842,12 @@ function createNewTrip() {
     const trip = { id: 'v-' + uid(), createdAt: new Date().toISOString(), startDate: start, endDate: end, data: defaultTripData(name, start, end) };
     closeNewTripModal();
     App.trips.push(trip);
-    db.ref(ROOT).update({ ['trips/' + trip.id]: trip, activeTripId: trip.id });
+    db.ref(ROOT).update({ ['trips/' + trip.id]: { ...trip, data: dataForFirebase(trip.data) }, activeTripId: trip.id });
     switchTrip(trip.id);
 }
 
 function deleteActiveTrip() {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede eliminar viajes', 2500); return; }
     if (App.trips.length < 2) { alert('Debe quedar al menos un viaje guardado.'); return; }
     const t = getActiveTrip();
     if (!confirm(`¿Eliminar el viaje "${(t && t.data.config.title) || ''}"?\n\nEsta acción no se puede deshacer.`)) return;
@@ -1637,8 +1937,7 @@ function buildPrintDoc() {
 }
 
 async function exportTripToPdf() {
-    const stops = [];
-    S.travelPlan.forEach(d => { if (d.location && stops[stops.length - 1] !== d.location) stops.push(d.location); });
+    const stops = planStops();
     if (stops.length >= 2 && routeLegs.length === 0) {
         showPdfToast('Preparando el PDF: calculando rutas…');
         try { await fetchRoutes(); } catch (e) { console.error('Error calculando rutas para el PDF:', e); }
@@ -1663,6 +1962,7 @@ function refreshLiveData() {
 }
 
 function resetToDefaults() {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     const t = getActiveTrip();
     if (!confirm('¿Restaurar los datos de este viaje a sus valores originales?')) return;
     const nuevo = (t && t.source !== 'legacy' && (t.startDate || t.endDate))
@@ -1700,6 +2000,7 @@ async function geocodeCity(name) {
 }
 
 async function addNewLocation() {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     const name = (prompt('Nombre de la nueva localidad:') || '').trim();
     if (!name) return;
     if (S.locations[name]) { alert('Ya existe una localidad llamada "' + name + '".'); return; }
@@ -1713,6 +2014,7 @@ async function addNewLocation() {
 }
 
 function locationDelete(city) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     delete S.locations[city];
     // Los días del plan que apuntaban a esa localidad quedan sin asignar
     S.travelPlan.forEach(d => { if (d.location === city) d.location = ''; });
@@ -1724,6 +2026,7 @@ function locationDelete(city) {
 }
 
 function renameLocation(oldCity, newCity) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     newCity = (newCity || '').trim();
     if (!newCity || newCity === oldCity) { renderView(); return; }
     if (S.locations[newCity]) { alert('Ya existe una localidad llamada "' + newCity + '".'); renderView(); return; }
@@ -1731,11 +2034,13 @@ function renameLocation(oldCity, newCity) {
     delete S.locations[oldCity];
     S.locations[newCity] = coord;
     S.travelPlan.forEach(d => { if (d.location === oldCity) d.location = newCity; });
-    // Actualizar también las rutas personalizadas
+    // Actualizar también las rutas personalizadas y los alojamientos
     (S.config.customRoutes || []).forEach(cr => {
         if (cr.from === oldCity) cr.from = newCity;
         if (cr.to === oldCity) cr.to = newCity;
     });
+    S.accommodations.forEach(h => { if (h.city === oldCity) h.city = newCity; });
+    syncItinerary();
     saveToFirebase(); renderView(); scheduleRouteFetch();
     // Si el nuevo nombre es otra ciudad, buscar sus coordenadas y recalcular rutas
     geocodeCity(newCity).then(c => {
@@ -1746,6 +2051,204 @@ function renameLocation(oldCity, newCity) {
             if (activeTab === 'routes') { routesFetched = true; fetchRoutes(); }
         }
     });
+}
+
+/* ======================================================================
+   LOGIN Y USUARIOS (admin / usuario de solo lectura)
+   Las contraseñas se guardan hasheadas (SHA-256 + salt) en Firebase.
+   ====================================================================== */
+const USERS_NODE = 'viajePlanner/appUsers';
+let USERS = {};
+
+async function hashPassword(salt, pass) {
+    const text = salt + ':' + pass;
+    if (window.crypto && window.crypto.subtle) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Reserva para contextos sin WebCrypto (HTTP sin HTTPS): hash simple no criptográfico.
+    // La app publicada usa HTTPS, donde se emplea siempre SHA-256.
+    let h1 = 0x811c9dc5, h2 = 0x01000193;
+    for (let i = 0; i < text.length; i++) {
+        h1 = ((h1 ^ text.charCodeAt(i)) * 16777619) >>> 0;
+        h2 = (h2 + text.charCodeAt(i) * (i + 7)) >>> 0;
+    }
+    return 'f' + h1.toString(16) + '-' + h2.toString(16);
+}
+
+function loadUsers() {
+    db.ref(USERS_NODE).on('value', snap => {
+        USERS = snap.val() || {};
+        // Primer arranque: sembrar el administrador por defecto (admin / admin)
+        if (!Object.keys(USERS).length) {
+            const salt = uid() + uid();
+            hashPassword(salt, 'admin').then(hash => {
+                db.ref(USERS_NODE + '/admin').set({ name: 'admin', salt: salt, hash: hash, role: 'admin' });
+            });
+            return;
+        }
+        const listEl = document.getElementById('users-list');
+        if (listEl && !document.getElementById('users-modal').classList.contains('hidden')) renderUsersList();
+    }, err => console.error('Firebase: no se pudieron leer los usuarios', err));
+}
+
+function currentUser() {
+    try { return JSON.parse(sessionStorage.getItem('viajeUser')); } catch (e) { return null; }
+}
+function isAdmin() { const u = currentUser(); return !!u && u.role === 'admin'; }
+
+let loginShown = false;
+function showLogin() {
+    if (loginShown) return; // evitar robar el foco en cada sincronización de Firebase
+    loginShown = true;
+    const ls = document.getElementById('login-screen');
+    ls.classList.remove('hidden');
+    ls.classList.add('flex');
+    const bind = id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    bind('lg-user');
+    bind('lg-pass');
+    document.getElementById('lg-user').focus();
+}
+
+async function doLogin() {
+    const name = document.getElementById('lg-user').value.trim();
+    const pass = document.getElementById('lg-pass').value;
+    const err = document.getElementById('lg-error');
+    const fail = msg => { err.textContent = msg; err.classList.remove('hidden'); };
+    const u = USERS[name];
+    if (!u || typeof u !== 'object') { fail('Usuario o contraseña incorrectos'); return; }
+    const hash = await hashPassword(u.salt || '', pass);
+    if (hash !== u.hash) { fail('Usuario o contraseña incorrectos'); return; }
+    sessionStorage.setItem('viajeUser', JSON.stringify({ name: u.name, role: u.role || 'user' }));
+    err.classList.add('hidden');
+    document.getElementById('lg-pass').value = '';
+    const ls = document.getElementById('login-screen');
+    ls.classList.add('hidden');
+    ls.classList.remove('flex');
+    renderApp();
+    showToast('Bienvenido, ' + u.name, 1800);
+}
+
+function logout() {
+    sessionStorage.removeItem('viajeUser');
+    location.reload();
+}
+
+function renderUserChip() {
+    const u = currentUser();
+    const chip = document.getElementById('user-chip');
+    if (chip) {
+        chip.textContent = u ? `${u.name} · ${u.role === 'admin' ? 'admin' : 'solo lectura'}` : '';
+        chip.classList.toggle('hidden', !u);
+    }
+    const bu = document.getElementById('btn-users');
+    if (bu) bu.classList.toggle('hidden', !(u && u.role === 'admin'));
+    const be = document.getElementById('btn-edit-trip');
+    if (be) be.classList.toggle('hidden', !(u && u.role === 'admin'));
+    const bn = document.getElementById('btn-new-trip');
+    if (bn) bn.classList.toggle('hidden', !(u && u.role === 'admin'));
+}
+
+/* ---- Gestión de usuarios (solo admin) ---- */
+let userEditing = null;
+
+function openUsersModal() {
+    if (!isAdmin()) return;
+    hideUserForm();
+    renderUsersList();
+    document.getElementById('users-modal').classList.remove('hidden');
+}
+function closeUsersModal() {
+    document.getElementById('users-modal').classList.add('hidden');
+    hideUserForm();
+}
+
+function renderUsersList() {
+    const el = document.getElementById('users-list');
+    const me = currentUser();
+    const jsEsc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const list = Object.values(USERS).filter(u => u && typeof u === 'object')
+        .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : (a.role === 'admin' ? -1 : 1)));
+    el.innerHTML = list.map(u => `
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="text-white font-medium truncate">${esc(u.name)}</span>
+                <span class="text-xs px-2 py-0.5 rounded-lg flex-shrink-0 ${u.role === 'admin' ? 'bg-blue-600/20 text-blue-300' : 'bg-slate-700/50 text-slate-300'}">${u.role === 'admin' ? 'admin' : 'usuario'}</span>
+                ${me && u.name === me.name ? '<span class="text-xs text-slate-500 flex-shrink-0">(tú)</span>' : ''}
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+                <button class="btn-icon btn-edit" onclick="openUserForm('${jsEsc(u.name)}')" title="Editar usuario">${ICO.edit}</button>
+                ${(!me || u.name !== me.name) ? `<button class="btn-icon btn-delete" onclick="deleteUser('${jsEsc(u.name)}')" title="Eliminar usuario">${ICO.trash}</button>` : ''}
+            </div>
+        </div>`).join('');
+}
+
+function openUserForm(name) {
+    userEditing = name;
+    const form = document.getElementById('user-form');
+    document.getElementById('uf-name').value = name || '';
+    document.getElementById('uf-name').disabled = false;
+    document.getElementById('uf-pass').value = '';
+    document.getElementById('uf-pass2').value = '';
+    document.getElementById('uf-role').value = (name && USERS[name] && USERS[name].role === 'admin') ? 'admin' : 'user';
+    document.getElementById('uf-pass-label').textContent = name ? 'Contraseña nueva (dejar vacío para no cambiarla)' : 'Contraseña';
+    document.getElementById('uf-error').classList.add('hidden');
+    form.classList.remove('hidden');
+    document.getElementById('uf-name').focus();
+}
+function hideUserForm() {
+    userEditing = null;
+    const f = document.getElementById('user-form');
+    if (f) f.classList.add('hidden');
+}
+
+async function saveUser() {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede gestionar usuarios', 2500); return; }
+    const errEl = document.getElementById('uf-error');
+    const fail = msg => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
+    const newName = document.getElementById('uf-name').value.trim();
+    const p1 = document.getElementById('uf-pass').value;
+    const p2 = document.getElementById('uf-pass2').value;
+    const role = document.getElementById('uf-role').value;
+    if (!newName) { fail('Escribe un nombre de usuario.'); return; }
+    if (p1 || p2) {
+        if (p1 !== p2) { fail('Las contraseñas no coinciden.'); return; }
+        if (p1.length < 4) { fail('La contraseña debe tener al menos 4 caracteres.'); return; }
+    }
+    if (!userEditing && !p1) { fail('Escribe una contraseña para el nuevo usuario.'); return; }
+    if (!userEditing && USERS[newName]) { fail('Ya existe un usuario con ese nombre.'); return; }
+
+    const old = userEditing ? USERS[userEditing] : null;
+    const entry = { name: newName, role: role, salt: old ? old.salt : uid() + uid(), hash: old ? old.hash : '' };
+    if (p1) {
+        entry.salt = uid() + uid();
+        entry.hash = await hashPassword(entry.salt, p1);
+    }
+    if (!entry.hash) { fail('Error interno: hash de contraseña vacío.'); return; }
+
+    const updates = { [newName]: entry };
+    if (userEditing && userEditing !== newName) updates[userEditing] = null;
+    await db.ref(USERS_NODE).update(updates);
+    // Si el admin se renombró, actualizar la sesión
+    const me = currentUser();
+    if (me && userEditing === me.name) {
+        sessionStorage.setItem('viajeUser', JSON.stringify({ name: newName, role: role }));
+        renderUserChip();
+    }
+    hideUserForm();
+    renderUsersList();
+    showToast('Usuario guardado ✓', 1500);
+}
+
+function deleteUser(name) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede gestionar usuarios', 2500); return; }
+    const admins = Object.values(USERS).filter(u => u && typeof u === 'object' && u.role === 'admin');
+    if (USERS[name] && USERS[name].role === 'admin' && admins.length <= 1) {
+        alert('Debe quedar al menos un administrador.');
+        return;
+    }
+    if (!confirm('¿Eliminar al usuario "' + name + '"?')) return;
+    db.ref(USERS_NODE + '/' + name).remove();
 }
 
 /* ======================================================================
@@ -1766,13 +2269,10 @@ applyTheme();
    INIT
    ====================================================================== */
 function startApp() {
+    loadUsers();
     loadFromFirebase(() => {
         document.getElementById('loading-screen').style.display = 'none';
-        document.getElementById('nav-appname').textContent = S.config.appName || 'MiViaje';
-        renderTabs();
-        renderView();
-        if (activeTab === 'weather' && !weatherFetched) { weatherFetched = true; fetchWeather(); }
-        if (activeTab === 'routes' && !routesFetched) { routesFetched = true; fetchRoutes(); }
+        if (currentUser()) renderApp(); else showLogin();
     });
     // Sin conexión con Firebase: aviso claro en la pantalla de carga
     setTimeout(function () {
@@ -1791,6 +2291,17 @@ function tryStart() {
     if (appStarted) return;
     appStarted = true;
     startApp();
+}
+
+// Render de la app tras iniciar sesión (o con sesión recordada en la pestaña)
+function renderApp() {
+    document.body.classList.toggle('role-user', !isAdmin());
+    document.getElementById('nav-appname').textContent = S.config.appName || 'MiViaje';
+    renderUserChip();
+    renderTabs();
+    renderView();
+    if (activeTab === 'weather' && !weatherFetched) { weatherFetched = true; fetchWeather(); }
+    if (activeTab === 'routes' && !routesFetched) { routesFetched = true; fetchRoutes(); }
 }
 firebase.auth().onAuthStateChanged(function (user) {
     if (user) tryStart();
