@@ -9,7 +9,7 @@
 
 // La versión de la app: cambia este valor con cada release. Se envía al
 // cliente (index.html) para mostrarla en el chip de versión dinámico.
-const APP_VERSION = '1.31.2';
+const APP_VERSION = '1.31.3';
 
 // El nombre del caché lleva la versión: al cambiar APP_VERSION, el SW
 // considera obsoleto el caché anterior y lo purga en 'activate'.
