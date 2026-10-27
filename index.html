@@ -326,8 +326,6 @@
 </head>
 <body>
 
-    <!-- Chip de versión global (siempre visible, fuera del navbar) -->
-    <button id="app-version" type="button" title="Versión de la app" class="fixed bottom-3 right-3 z-[60] px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-slate-900/70 text-blue-300 border border-blue-500/50 backdrop-blur-sm hover:bg-slate-800/90 hover:text-blue-200 transition-colors print:hidden shadow-lg">v1.30.3</button>
 
     <!-- ============ NAVBAR (oculto hasta iniciar sesión) ============ -->
     <nav id="navbar" class="hidden bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-40 shadow-lg" style="padding-top: env(safe-area-inset-top, 0px);">
@@ -1160,7 +1158,11 @@ function renderEditForm(type, idx) {
                     <input type="time" class="edit-input" data-field="time" value="${esc(src.time)}"></div>
             </div>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Título</label>
-                <input class="edit-input" data-field="title" value="${esc(src.title)}" placeholder="p. ej. Sidrería Crespo"></div>
+                <div class="flex gap-2">
+                    <input class="edit-input flex-1" data-field="title" value="${esc(src.title)}" placeholder="p. ej. Sidrería Crespo">
+                    <button type="button" onclick="enrichReservationFromForm()" class="btn-icon bg-blue-600/80 hover:bg-blue-500 text-white flex-shrink-0" title="Buscar información en Internet">${ICO.search}</button>
+                </div>
+                <p id="reserv-search-status" class="text-xs text-blue-300 mt-1.5 hidden"></p></div>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Dirección / ubicación</label>
                 <textarea class="edit-input" data-field="location" placeholder="Calle, número, código postal, ciudad">${esc(src.location)}</textarea></div>
             <div>
@@ -1303,6 +1305,12 @@ function saveEditModal() {
         };
         if (idx === -1) S.reservations.push(r);
         else S.reservations[idx] = r;
+        // Si hay título pero faltan ubicación/teléfono, intentar
+        // enriquecer en segundo plano (no sobrescribe lo ya relleno).
+        if (r.title && r.title !== 'Nueva reserva' && (!r.location || !phones.length)) {
+            const newIdx = S.reservations.indexOf(r);
+            setTimeout(() => enrichReservationIfMissing(newIdx), 400);
+        }
     } else if (type === 'accommodation') {
         const prev = idx === -1 ? null : S.accommodations[idx];
         const h = {
@@ -1369,6 +1377,9 @@ function renderView() {
     initEditables();
     // En la home, reabrir el acordeón que estaba abierto antes del re-render
     if (activeTab === 'home') restoreHomeAccordion();
+    // Tras cualquier re-render, restaurar el chip de versión si ya la
+    // teníamos (el chip vive dentro de viewHome y se recrea en cada render).
+    restoreVersionChip();
 }
 
 /* ---------- HOME ---------- */
@@ -1530,7 +1541,7 @@ function viewHome() {
 
     return `<div class="fade-in">
         <header class="text-center mt-4 sm:mt-8 mb-8 sm:mb-12">
-            <h1 class="font-bold text-white mb-4 tracking-tight" style="font-size: clamp(2.2rem, 9vw, 3.75rem);"><span class="text-blue-300">Viaje:&nbsp;</span><span>${esc(S.config.title)}</span></h1>
+            <h1 class="font-bold text-white mb-4 tracking-tight flex items-center justify-center gap-3 flex-wrap" style="font-size: clamp(2.2rem, 9vw, 3.75rem);"><span class="text-blue-300">Viaje:&nbsp;</span><span>${esc(S.config.title)}</span><button id="app-version" type="button" title="Versión de la app" class="px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40 hover:text-blue-200 transition-colors print:hidden shadow-lg align-middle" style="font-size: 11px;">v1.30.3</button></h1>
             <p class="text-blue-300 text-xl font-medium">${esc(tripSubtitle())}</p>
             <p class="text-slate-400 mt-4 max-w-2xl mx-auto">${esc(S.config.description)}</p>
             <p class="text-slate-500 text-xs mt-3">Pulsa sobre una tarjeta o panel para desplegar su contenido. Solo puede haber uno abierto a la vez.</p>
@@ -2160,6 +2171,82 @@ async function enrichAccommodationIfMissing(idx) {
     }
 }
 
+/* ---- Auto-búsqueda de RESERVAS en Internet ---- */
+// Reutiliza enrichAccommodation() (Nominatim + Wikipedia) y mapea los
+// campos al modelo de reserva: address -> location, phone -> phones[0].
+async function enrichReservationFromForm() {
+    const body = document.getElementById('section-edit-body');
+    if (!body) return;
+    const titleEl = body.querySelector('[data-field="title"]');
+    const cityEl = body.querySelector('[data-field="city"]');
+    if (!titleEl) return;
+    const title = titleEl.value.trim();
+    const city = cityEl ? cityEl.value.trim() : '';
+    if (!title) { showToast('Escribe primero el título de la reserva', 2500); titleEl.focus(); return; }
+    const status = document.getElementById('reserv-search-status');
+    if (status) { status.textContent = 'Buscando «' + title + (city ? ' · ' + city : '') + '» en Internet…'; status.classList.remove('hidden'); }
+    const info = await enrichAccommodation(title, city);
+    if (!info) {
+        if (status) status.textContent = '⚠ No se pudo completar la búsqueda.';
+        return;
+    }
+    const setVal = (field, val) => {
+        if (!val) return;
+        const el = body.querySelector('[data-field="' + field + '"]');
+        if (el && !el.value.trim()) el.value = val;
+    };
+    setVal('location', info.address);   // address -> location
+    setVal('email', '');                 // Wikipedia no da email
+    // Teléfono: si el primer input de teléfono está vacío, rellenarlo.
+    if (info.phone) {
+        const firstPhone = body.querySelector('[data-phone-row] input');
+        if (firstPhone && !firstPhone.value.trim()) firstPhone.value = info.phone;
+    }
+    // Si la nota está vacía, añadir la descripción de Wikipedia + web.
+    if (info.description || info.website) {
+        const noteEl = body.querySelector('[data-field="note"]');
+        if (noteEl && !noteEl.value.trim()) {
+            const parts = [];
+            if (info.description) parts.push(info.description);
+            if (info.website) parts.push('Web: ' + info.website);
+            noteEl.value = parts.join(' · ');
+        }
+    }
+    const found = [info.address, info.phone, info.website, info.description].filter(Boolean).length;
+    if (status) {
+        status.textContent = found
+            ? '✓ Encontrado: ' + [info.phone, info.address].filter(Boolean).slice(0,2).join(' · ')
+            : '⚠ Sin resultados. Revisa el título o la ciudad.';
+    }
+    showToast(found ? 'Información encontrada ✓' : 'Sin resultados en Internet', 2000);
+}
+
+// Auto-enriquece una reserva ya guardada cuando faltan datos. No
+// sobrescribe campos ya rellenos por el usuario.
+async function enrichReservationIfMissing(idx) {
+    const r = S.reservations[idx];
+    if (!r || !r.title) return;
+    // Si ya tiene ubicación Y teléfono, no hacer nada.
+    if (r.location && r.phones && r.phones.length) return;
+    const info = await enrichAccommodation(r.title, r.city);
+    if (!info) return;
+    let changed = false;
+    if (!r.location && info.address) { r.location = info.address; changed = true; }
+    if ((!r.phones || !r.phones.length) && info.phone) { r.phones = [info.phone]; changed = true; }
+    if (info.description || info.website) {
+        const extras = [];
+        if (info.description) extras.push(info.description);
+        if (info.website) extras.push('Web: ' + info.website);
+        const extra = extras.join(' · ');
+        if (!r.note) { r.note = extra; changed = true; }
+    }
+    if (changed) {
+        saveToFirebase();
+        if (activeTab === 'reservas') renderView();
+        showToast('«' + r.title + '» actualizada desde Internet ✓', 2200);
+    }
+}
+
 function viewAccom() {
     syncAccommodations();
     const cards = S.accommodations.map((h, hi) => {
@@ -2737,11 +2824,21 @@ setTimeout(tryStart, 4000);
 // Se sincroniza con APP_VERSION de sw.js al desplegar.
 const EMBEDDED_VERSION = '1.30.3';
 
+// Versión actual mostrada en el chip (para restaurarla tras re-renders).
+let _currentVersion = null;
 function setVersionChip(v, source) {
     const chip = document.getElementById('app-version');
-    if (!chip) { console.warn('[version] chip no encontrado en el DOM'); return; }
+    if (!chip) return;
     chip.textContent = v ? ('v' + v) : 'v—';
-    if (v) console.log('[version] chip actualizado a v' + v + ' (' + (source||'?') + ')');
+    if (v) _currentVersion = v;
+}
+// Tras un re-render de la home, el chip #app-version se recrea con el
+// texto por defecto (v1.30.3). Esta función restaura la versión real si
+// ya la tenemos (del SW o de la inicialización).
+function restoreVersionChip() {
+    const chip = document.getElementById('app-version');
+    if (!chip) return;
+    if (_currentVersion) chip.textContent = 'v' + _currentVersion;
 }
 
 // Consulta de versión al SW con timeout (sin reintentos ciegos que
@@ -2757,7 +2854,6 @@ function askSwVersion() {
     if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
     if (_swVersionResolved) return;  // ya tenemos la versión del SW, no reintentar
     if (!('serviceWorker' in navigator)) {
-        console.warn('[version] serviceWorker no soportado');
         setVersionChip(EMBEDDED_VERSION, 'embedded (no SW)');
         return;
     }
@@ -2767,14 +2863,12 @@ function askSwVersion() {
         // el listener cancelará este timer.
         try {
             navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
-            console.log('[version] GET_VERSION enviado al SW (intento ' + (_swVersionAttempts + 1) + ')');
-        } catch (e) { console.error('[version] error enviando GET_VERSION:', e); }
+        } catch (e) {}
         _swVersionAttempts++;
         if (_swVersionAttempts < 5) {
             _swVersionTimer = setTimeout(askSwVersion, 2000);  // timeout, no reintento ciego
         } else {
             // Si tras 5 intentos (10s) no hay respuesta, usar la embebida.
-            console.warn('[version] SW no responde tras 5 intentos; usando versión embebida');
             setVersionChip(EMBEDDED_VERSION, 'embedded (SW no responde)');
         }
     } else {
@@ -2800,7 +2894,6 @@ if ('serviceWorker' in navigator) {
         }
     });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-        console.log('[version] controllerchange detectado');
         _swVersionAttempts = 0;
         _swVersionResolved = false;  // nuevo SW: volver a interrogar
         askSwVersion();
@@ -2813,7 +2906,6 @@ setVersionChip(EMBEDDED_VERSION, 'embedded (inicial)');
 // Registrar el SW lo antes posible.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     navigator.serviceWorker.register('./sw.js').then(function (reg) {
-        console.log('[version] SW registrado, scope:', reg.scope);
         askSwVersion();
         reg.addEventListener('updatefound', function () {
             const nw = reg.installing;
@@ -2825,11 +2917,9 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
             });
         });
     }).catch(function (err) {
-        console.warn('[version] SW no registrado:', err);
         setVersionChip(EMBEDDED_VERSION, 'embedded (SW error)');
     });
 } else {
-    console.warn('[version] SW no registrado (protocolo no permitido):', location.protocol);
     setVersionChip(EMBEDDED_VERSION, 'embedded (protocolo)');
 }
 </script>
