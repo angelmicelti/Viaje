@@ -414,6 +414,8 @@
     <!-- ============ EXPORT PDF (A4) ============ -->
     <div id="print-root"></div>
     <div id="app-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-xl shadow-2xl text-sm font-medium hidden"></div>
+    <!-- Chip dinámico de versión (se rellena desde el Service Worker) -->
+    <button id="app-version" type="button" title="Versión de la app (desde el Service Worker)" class="fixed bottom-4 left-4 z-40 px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-slate-900/60 text-slate-300 border border-slate-700/60 backdrop-blur-sm hover:bg-slate-800/80 hover:text-white transition-colors hidden print:hidden">v…</button>
 
     <!-- ============ NEW TRIP MODAL ============ -->
     <div id="newtrip-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
@@ -2517,13 +2519,60 @@ firebase.auth().signInAnonymously().catch(function (err) {
 });
 setTimeout(tryStart, 4000);
 
-// Service Worker (PWA): instala la app y habilita el uso de la interfaz sin conexión
+// Service Worker (PWA): instala la app, habilita offline y expone la versión.
+// El chip #app-version se rellena dinámicamente preguntando al SW activo.
+function setVersionChip(v) {
+    const chip = document.getElementById('app-version');
+    if (!chip) return;
+    if (v) {
+        chip.textContent = 'v' + v;
+        chip.classList.remove('hidden');
+    } else {
+        chip.textContent = 'v—';
+        chip.classList.remove('hidden');
+    }
+}
+function askSwVersion() {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+        setVersionChip(null);
+        return;
+    }
+    navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
+}
+// El SW responde con { type: 'APP_VERSION', version, cacheName }
+navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', function (event) {
+    const d = event.data || {};
+    if (d.type === 'APP_VERSION' && d.version) {
+        setVersionChip(d.version);
+    }
+});
+// Si el SW cambia (nueva versión tras recargar), volver a preguntar.
+navigator.serviceWorker && navigator.serviceWorker.addEventListener('controllerchange', askSwVersion);
+
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js').catch(function (err) {
+        navigator.serviceWorker.register('./sw.js').then(function (reg) {
+            // Si ya hay un SW activo, pedir la versión de inmediato.
+            askSwVersion();
+            // Escuchar actualizaciones del SW: cuando llegue uno nuevo,
+            // avisar al usuario para que recargue.
+            reg.addEventListener('updatefound', function () {
+                const nw = reg.installing;
+                if (!nw) return;
+                nw.addEventListener('statechange', function () {
+                    if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                        showToast('Nueva versión disponible · recarga para actualizar', 5000);
+                    }
+                });
+            });
+        }).catch(function (err) {
             console.warn('Service Worker no registrado:', err);
+            setVersionChip(null);
         });
     });
+} else {
+    // Sin SW (HTTP plano sin localhost): mostrar chip en gris.
+    setVersionChip(null);
 }
 </script>
 </body>
