@@ -347,7 +347,7 @@
                 <div class="flex-shrink-0 flex items-center cursor-pointer gap-2" onclick="switchTab('home')" title="Ir a Inicio">
                     <svg class="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>
                     <span id="nav-appname" class="font-bold text-white text-base sm:text-lg tracking-tight hidden sm:block">Mi Viaje</span>
-                    <button id="app-version" type="button" title="Versión de la app" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-mono font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40 hover:text-blue-200 transition-colors print:hidden">v1.31.2</button>
+                    <button id="app-version" type="button" title="Versión de la app" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-mono font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40 hover:text-blue-200 transition-colors print:hidden">v1.31.4</button>
                 </div>
 
                 <!-- Divisor (escritorio) -->
@@ -2850,7 +2850,7 @@ setTimeout(tryStart, 4000);
 // Service Worker (PWA): instala la app, habilita offline y expone la versión.
 // Versión embebida en el HTML (fallback inmediato si el SW no responde).
 // Se sincroniza con APP_VERSION de sw.js al desplegar.
-const EMBEDDED_VERSION = '1.31.2';
+const EMBEDDED_VERSION = '1.31.4';
 
 // Versión actual mostrada en el chip (para restaurarla tras re-renders).
 let _currentVersion = null;
@@ -2883,7 +2883,7 @@ function setVersionChip(v, source) {
     _currentVersion = v;
 }
 // Tras un re-render de la home, el chip #app-version se recrea con el
-// texto por defecto (v1.31.2). Esta función restaura la versión real si
+// texto por defecto (v1.31.4). Esta función restaura la versión real si
 // ya la tenemos (del SW o de la inicialización).
 function restoreVersionChip() {
     const chip = document.getElementById('app-version');
