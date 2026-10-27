@@ -583,12 +583,12 @@ const DEFAULTS = {
         "Toledo": { lat: 39.8628, lon: -4.0273 }
     },
     accommodations: [
-        { id: "a1", city: "Ávila", name: "Hotel Las Leyendas", phone: "+34 920 352 042", type: "Hotel" },
-        { id: "a2", city: "Suances", name: "Posada Santa Ana", phone: "+34 942 844 364", type: "Posada Rural" },
-        { id: "a3", city: "Llastres", name: "Hotel Eutimio", phone: "+34 985 850 012", type: "Hotel Restaurante" },
-        { id: "a4", city: "Sober", name: "Loft con jacuzzi Os Arcos", phone: "Vivienda de Uso Turístico", type: "Apartamento" },
-        { id: "a5", city: "Peñafiel", name: "AZZ Las Claras Hotel & Spa", phone: "+34 983 878 168", type: "Hotel & Spa" },
-        { id: "a6", city: "Toledo", name: "Beatriz Spa Auditorium", phone: "+34 925 230 750", type: "Hotel & Spa" }
+        { id: "a1", city: "Ávila", name: "Hotel Las Leyendas", phone: "+34 920 352 042", type: "Hotel", address: "", website: "" },
+        { id: "a2", city: "Suances", name: "Posada Santa Ana", phone: "+34 942 844 364", type: "Posada Rural", address: "", website: "" },
+        { id: "a3", city: "Llastres", name: "Hotel Eutimio", phone: "+34 985 850 012", type: "Hotel Restaurante", address: "", website: "" },
+        { id: "a4", city: "Sober", name: "Loft con jacuzzi Os Arcos", phone: "Vivienda de Uso Turístico", type: "Apartamento", address: "", website: "" },
+        { id: "a5", city: "Peñafiel", name: "AZZ Las Claras Hotel & Spa", phone: "+34 983 878 168", type: "Hotel & Spa", address: "", website: "" },
+        { id: "a6", city: "Toledo", name: "Beatriz Spa Auditorium", phone: "+34 925 230 750", type: "Hotel & Spa", address: "", website: "" }
     ],
     reservations: [
         { id: "r1", date: "28 de julio", time: "12:00", title: "Sidrería Crespo", location: "Sidra Crespo, Sales, 33320, Colunga, Asturias", note: "Preguntar por Rosa (espichas y eventos) · 679 57 97 55. Visita guiada gratuita con explicación del proceso y espicha con degustación directamente del tonel de madera. Lagar familiar desde 1945 (4ª generación). Sidra 100% natural con manzana de cosecha propia del oriente de Asturias. Horario: Lun-Sáb 9:00-20:00, Dom 10:00-13:30. Parking privado disponible. Web: https://www.sidracrespo.es", phones: ["679 57 97 55", "639 49 38 83"], email: "" },
@@ -639,7 +639,9 @@ const ICO = {
     chev: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>',
     edit: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>',
     save: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
-    close: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
+    close: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
+    search: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>',
+    web: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>',
 };
 
 const CARD_COLORS = {
@@ -1088,18 +1090,27 @@ function renderEditForm(type, idx) {
     }
     if (type === 'accommodation') {
         const isNew = idx === -1;
-        const h = isNew ? { id: 'a-' + uid(), city: '', name: '', phone: '', type: 'Hotel' } : S.accommodations[idx];
+        const h = isNew ? { id: 'a-' + uid(), city: '', name: '', phone: '', type: 'Hotel', address: '', website: '' } : Object.assign({ address: '', website: '' }, S.accommodations[idx]);
         return `
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Ciudad</label>
                 <input class="edit-input" data-field="city" value="${esc(h.city)}" placeholder="p. ej. Ávila"></div>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Nombre del alojamiento</label>
-                <input class="edit-input" data-field="name" value="${esc(h.name)}" placeholder="p. ej. Hotel Las Leyendas"></div>
+                <div class="flex gap-2">
+                    <input class="edit-input flex-1" data-field="name" value="${esc(h.name)}" placeholder="p. ej. Hotel Las Leyendas">
+                    <button type="button" onclick="enrichAccommodationFromForm()" class="btn-icon bg-blue-600/80 hover:bg-blue-500 text-white flex-shrink-0" title="Buscar información en Internet">${ICO.search}</button>
+                </div>
+                <p id="accom-search-status" class="text-xs text-blue-300 mt-1.5 hidden"></p>
             <div class="grid grid-cols-2 gap-4">
                 <div><label class="block text-sm text-slate-300 mb-1 font-medium">Tipo</label>
                     <input class="edit-input" data-field="type" value="${esc(h.type)}" placeholder="Hotel, Apartamento, Posada Rural..."></div>
                 <div><label class="block text-sm text-slate-300 mb-1 font-medium">Teléfono</label>
                     <input class="edit-input" data-field="phone" value="${esc(h.phone)}" placeholder="+34 ..."></div>
             </div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Dirección</label>
+                <textarea class="edit-input" data-field="address" placeholder="Se rellenará automáticamente desde Internet">${esc(h.address)}</textarea></div>
+            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Sitio web</label>
+                <input type="url" class="edit-input" data-field="website" value="${esc(h.website)}" placeholder="https://..."></div>
+            <p class="text-xs text-slate-500">Pulsa el botón de búsqueda para rellenar automáticamente el tipo, teléfono, dirección y web. Solo se completan los campos que estén vacíos.</p>
         `;
     }
     return '<p class="text-slate-400">Tipo de sección desconocido.</p>';
@@ -1207,15 +1218,24 @@ function saveEditModal() {
         if (idx === -1) S.reservations.push(r);
         else S.reservations[idx] = r;
     } else if (type === 'accommodation') {
+        const prev = idx === -1 ? null : S.accommodations[idx];
         const h = {
-            id: idx === -1 ? 'a-' + uid() : S.accommodations[idx].id,
+            id: idx === -1 ? 'a-' + uid() : prev.id,
             city: getVal('city'),
             name: getVal('name') || 'Nuevo alojamiento',
             type: getVal('type') || 'Hotel',
-            phone: getVal('phone')
+            phone: getVal('phone'),
+            address: getVal('address'),
+            website: getVal('website')
         };
         if (idx === -1) S.accommodations.push(h);
         else S.accommodations[idx] = h;
+        // Si hay nombre pero faltan datos clave, intentar enriquecer en
+        // segundo plano (no sobrescribe lo ya rellenado por el usuario).
+        if (h.name && h.name !== 'Nuevo alojamiento' && (!h.phone || !h.address)) {
+            const newIdx = S.accommodations.indexOf(h);
+            setTimeout(() => enrichAccommodationIfMissing(newIdx), 400);
+        }
     }
 
     saveToFirebase();
@@ -1819,16 +1839,122 @@ function syncAccommodations() {
     if (changed) saveToFirebase();
 }
 
+/* =====================================================================
+   AUTO-BÚSQUEDA DE ALOJAMIENTOS EN INTERNET
+   Combina Nominatim (OpenStreetMap) y Wikipedia (descripción).
+   Nominatim devuelve para nodos OSM: display_name (dirección), phone,
+   website, type (categoría: hotel, tourism=hotel, etc.).
+   ===================================================================== */
+async function enrichAccommodation(name, city) {
+    name = (name || '').trim();
+    city = (city || '').trim();
+    if (!name) return null;
+    const q = city ? `${name}, ${city}` : name;
+    const out = { address: '', phone: '', website: '', type: '', description: '' };
+    try {
+        const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=es&addressdetails=1&q=' + encodeURIComponent(q));
+        const j2 = await r.json();
+        if (Array.isArray(j2) && j2.length) {
+            const hit = j2[0];
+            if (hit.display_name) out.address = hit.display_name;
+            if (hit.extratags) {
+                if (hit.extratags.phone) out.phone = hit.extratags.phone;
+                if (hit.extratags.website) out.website = hit.extratags.website;
+                if (hit.extratags["contact:phone"]) out.phone = out.phone || hit.extratags["contact:phone"];
+                if (hit.extratags["contact:website"]) out.website = out.website || hit.extratags["contact:website"];
+                if (hit.extratags.tourism) out.type = hit.extratags.tourism.charAt(0).toUpperCase() + hit.extratags.tourism.slice(1);
+                else if (hit.extratags.building) out.type = hit.extratags.building;
+                else if (hit.category) out.type = hit.category.charAt(0).toUpperCase() + hit.category.slice(1);
+            } else if (hit.category) {
+                out.type = hit.category.charAt(0).toUpperCase() + hit.category.slice(1);
+            }
+        }
+    } catch (e) { console.error('Nominatim error', e); }
+    // Descripción corta desde Wikipedia (ES)
+    try {
+        const r2 = await fetch('https://es.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name) + '?redirect=true');
+        if (r2.ok) {
+            const w = await r2.json();
+            if (w && w.extract && w.type !== 'disambiguation') out.description = w.extract;
+        }
+    } catch (e) { console.error('Wikipedia error', e); }
+    return out;
+}
+
+// Rellena los campos del formulario de edición de alojamiento con los
+// datos obtenidos de Internet. Solo sobrescribe campos vacíos.
+async function enrichAccommodationFromForm() {
+    const body = document.getElementById('section-edit-body');
+    if (!body) return;
+    const nameEl = body.querySelector('[data-field="name"]');
+    const cityEl = body.querySelector('[data-field="city"]');
+    if (!nameEl) return;
+    const name = nameEl.value.trim();
+    const city = cityEl ? cityEl.value.trim() : '';
+    if (!name) { showToast('Escribe primero el nombre del alojamiento', 2500); nameEl.focus(); return; }
+    const status = document.getElementById('accom-search-status');
+    if (status) { status.textContent = 'Buscando «' + name + (city ? ' · ' + city : '') + '» en Internet…'; status.classList.remove('hidden'); }
+    const info = await enrichAccommodation(name, city);
+    if (!info) {
+        if (status) status.textContent = '⚠ No se pudo completar la búsqueda.';
+        return;
+    }
+    const setVal = (field, val) => {
+        if (!val) return;
+        const el = body.querySelector('[data-field="' + field + '"]');
+        if (el && !el.value.trim()) el.value = val;  // solo rellena si está vacío
+    };
+    setVal('type', info.type);
+    setVal('phone', info.phone);
+    setVal('address', info.address);
+    setVal('website', info.website);
+    const found = [info.address, info.phone, info.website, info.type].filter(Boolean).length;
+    if (status) {
+        status.textContent = found
+            ? '✓ Encontrado: ' + [info.type, info.phone, info.address].filter(Boolean).slice(0,2).join(' · ')
+            : '⚠ Sin resultados. Revisa el nombre o la ciudad.';
+    }
+    showToast(found ? 'Información encontrada ✓' : 'Sin resultados en Internet', 2000);
+}
+
+// Auto-enriquece una tarjeta ya guardada cuando el usuario ha escrito un
+// nombre pero faltan teléfono/dirección. No sobrescribe campos ya rellenos.
+async function enrichAccommodationIfMissing(idx) {
+    const h = S.accommodations[idx];
+    if (!h || !h.name) return;
+    if (h.phone && h.address) return;  // ya está completo
+    const info = await enrichAccommodation(h.name, h.city);
+    if (!info) return;
+    let changed = false;
+    if (!h.phone && info.phone) { h.phone = info.phone; changed = true; }
+    if (!h.address && info.address) { h.address = info.address; changed = true; }
+    if (!h.website && info.website) { h.website = info.website; changed = true; }
+    if (!h.type || h.type === 'Hotel') { if (info.type) { h.type = info.type; changed = true; } }
+    if (changed) {
+        saveToFirebase();
+        if (activeTab === 'accom') renderView();
+        showToast('«' + h.name + '» actualizado desde Internet ✓', 2200);
+    }
+}
+
 function viewAccom() {
     syncAccommodations();
     const cards = S.accommodations.map((h, hi) => {
         const delBtn = `<button onclick="S.accommodations.splice(${hi},1); saveToFirebase(); renderView()" class="btn-icon btn-delete opacity-70 hover:opacity-100" title="Eliminar alojamiento">${ICO.trash}</button>`;
         const editBtn = `<button onclick="openEditModal('accommodation', ${hi})" class="btn-icon btn-edit opacity-70 hover:opacity-100" title="Editar alojamiento">${ICO.edit}</button>`;
-        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span><div class="flex items-center gap-2">${editBtn}${delBtn}</div></div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name) || '<i class="text-slate-500">nombre del alojamiento…</i>'}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-4"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div><div class="flex items-center text-white font-medium flex-wrap gap-2"><span class="text-emerald-400 mr-1">${ICO.phone}</span><span data-editable="accommodations.${hi}.phone">${esc(h.phone) || '<i class="text-slate-500">teléfono…</i>'}</span>${h.phone ? `<a href="tel:${esc(h.phone.replace(/ /g, ''))}" class="text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}</div></div></div>`;
+        // Línea de dirección (si existe)
+        const addressHtml = h.address
+            ? `<div class="flex items-start text-slate-300 mb-3"><span class="text-slate-400 mr-3 mt-0.5 flex-shrink-0">${ICO.pin}</span><span class="text-sm">${esc(h.address)}</span></div>`
+            : '';
+        // Línea de web (si existe)
+        const webHtml = h.website
+            ? `<div class="flex items-center text-blue-300 font-medium flex-wrap gap-2 mb-4"><span class="text-blue-400 mr-1">${ICO.web}</span><a href="${esc(h.website)}" target="_blank" rel="noopener" class="text-sm underline hover:text-blue-200">${esc(h.website.replace(/^https?:\/\//, '').replace(/\/$/, '')).slice(0, 48)}</a></div>`
+            : '';
+        return `<div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-colors shadow-lg fade-in"><div class="bg-purple-900/40 p-4 border-b border-white/5"><div class="flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-wider text-purple-300" data-editable="accommodations.${hi}.city">${esc(h.city)}</span><div class="flex items-center gap-2">${editBtn}${delBtn}</div></div><h3 class="text-lg font-bold text-white mt-1" data-editable="accommodations.${hi}.name">${esc(h.name) || '<i class="text-slate-500">nombre del alojamiento…</i>'}</h3></div><div class="p-6"><div class="flex items-center text-slate-300 mb-3"><span class="text-slate-400 mr-3">${ICO.building}</span><span data-editable="accommodations.${hi}.type">${esc(h.type)}</span></div>${addressHtml}${webHtml}<div class="flex items-center text-white font-medium flex-wrap gap-2"><span class="text-emerald-400 mr-1">${ICO.phone}</span><span data-editable="accommodations.${hi}.phone">${esc(h.phone) || '<i class="text-slate-500">teléfono…</i>'}</span>${h.phone ? `<a href="tel:${esc(h.phone.replace(/ /g, ''))}" class="text-xs text-emerald-300 underline hover:text-emerald-200">llamar</a>` : ''}</div></div></div>`;
     }).join('');
     const addBtn = `<button class="btn-add" onclick="openEditModal('accommodation', -1)" title="Añadir alojamiento">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir alojamiento</span></button>`;
     const hint = S.accommodations.length
-        ? `<p class="text-slate-500 text-xs mt-4 text-center">Se crea una tarjeta automáticamente por cada ciudad del plan de viaje. Pulsa sobre el nombre, el tipo o el teléfono para completarla.</p>`
+        ? `<p class="text-slate-500 text-xs mt-4 text-center">Se crea una tarjeta automáticamente por cada ciudad del plan de viaje. Edítala y pulsa el botón de búsqueda para rellenar tipo, teléfono, dirección y web desde Internet.</p>`
         : '';
     return `<div class="fade-in"><header class="text-center mb-8"><h2 class="text-3xl font-bold text-white mb-2">Mis Alojamientos</h2><p class="text-slate-400 text-sm max-w-xl mx-auto">Cada ciudad del plan tiene su tarjeta. Usa el botón <b>editar</b> para modificar todos sus campos.</p></header><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}${addBtn}</div>${hint}</div>`;
 }
