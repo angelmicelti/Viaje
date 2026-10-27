@@ -326,6 +326,9 @@
 </head>
 <body>
 
+    <!-- Chip de versión global (siempre visible, fuera del navbar) -->
+    <button id="app-version" type="button" title="Versión de la app" class="fixed bottom-3 right-3 z-[60] px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-slate-900/70 text-blue-300 border border-blue-500/50 backdrop-blur-sm hover:bg-slate-800/90 hover:text-blue-200 transition-colors print:hidden shadow-lg">v1.30.0</button>
+
     <!-- ============ NAVBAR (oculto hasta iniciar sesión) ============ -->
     <nav id="navbar" class="hidden bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-40 shadow-lg" style="padding-top: env(safe-area-inset-top, 0px);">
         <div class="max-w-5xl mx-auto px-3 sm:px-6">
@@ -335,7 +338,6 @@
                 <div class="flex-shrink-0 flex items-center cursor-pointer gap-2" onclick="switchTab('home')" title="Ir a Inicio">
                     <svg class="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>
                     <span id="nav-appname" class="font-bold text-white text-base sm:text-lg tracking-tight hidden sm:block">Mi Viaje</span>
-                    <button id="app-version" type="button" title="Versión de la app (desde el Service Worker)" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-mono font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40 hover:text-blue-200 transition-colors print:hidden" onclick="event.stopPropagation(); if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.controller.postMessage({type:'GET_VERSION'})}">v…</button>
                 </div>
 
                 <!-- Divisor (escritorio) -->
@@ -2731,13 +2733,17 @@ firebase.auth().signInAnonymously().catch(function (err) {
 setTimeout(tryStart, 4000);
 
 // Service Worker (PWA): instala la app, habilita offline y expone la versión.
-// El chip #app-version se rellena preguntando al SW activo.
-function setVersionChip(v) {
+// Versión embebida en el HTML (fallback inmediato si el SW no responde).
+// Se sincroniza con APP_VERSION de sw.js al desplegar.
+const EMBEDDED_VERSION = '1.30.0';
+
+function setVersionChip(v, source) {
     const chip = document.getElementById('app-version');
-    if (!chip) return;
+    if (!chip) { console.warn('[version] chip no encontrado en el DOM'); return; }
     chip.textContent = v ? ('v' + v) : 'v—';
-    chip.classList.remove('hidden');
+    if (v) console.log('[version] chip actualizado a v' + v + ' (' + (source||'?') + ')');
 }
+
 // Reintentos cíclicos para cubrir el caso en que el SW aún no es
 // controller (primera carga) o el controllerchange llega antes de
 // registrar el listener.
@@ -2745,22 +2751,32 @@ let _swVersionAttempts = 0;
 let _swVersionTimer = null;
 function askSwVersion() {
     if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
-    if (!('serviceWorker' in navigator)) { setVersionChip(null); return; }
+    if (!('serviceWorker' in navigator)) {
+        console.warn('[version] serviceWorker no soportado');
+        setVersionChip(EMBEDDED_VERSION, 'embedded (no SW)');
+        return;
+    }
     if (navigator.serviceWorker.controller) {
         // Hay controller: preguntar y esperar respuesta (con reintento
         // por si el mensaje se pierde).
-        navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
+        try {
+            navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
+            console.log('[version] GET_VERSION enviado al SW');
+        } catch (e) { console.error('[version] error enviando GET_VERSION:', e); }
         _swVersionAttempts++;
         if (_swVersionAttempts < 12) {
             _swVersionTimer = setTimeout(askSwVersion, 500);
+        } else {
+            // Si tras 12 intentos no hay respuesta, usar la versión embebida.
+            setVersionChip(EMBEDDED_VERSION, 'embedded (SW no responde)');
         }
     } else {
-        // Aún no hay controller: reintentar hasta que llegue.
+        // Aún no hay controller: reintentar.
         _swVersionAttempts++;
         if (_swVersionAttempts < 20) {
             _swVersionTimer = setTimeout(askSwVersion, 500);
         } else {
-            setVersionChip(null);
+            setVersionChip(EMBEDDED_VERSION, 'embedded (sin controller)');
         }
     }
 }
@@ -2769,26 +2785,26 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function (event) {
         const d = event.data || {};
         if (d.type === 'APP_VERSION' && d.version) {
-            // Cancelar reintentos: ya tenemos la versión.
             if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
             _swVersionAttempts = 999;
-            setVersionChip(d.version);
+            setVersionChip(d.version, 'sw');
         }
     });
-    // Si el SW cambia (nueva versión o primera activación), reiniciar
-    // el ciclo de consulta.
     navigator.serviceWorker.addEventListener('controllerchange', function () {
+        console.log('[version] controllerchange detectado');
         _swVersionAttempts = 0;
         askSwVersion();
     });
 }
 
-// Registrar el SW lo antes posible (sin esperar a 'load') para que
-// tome el control cuanto antes y podamos pedirle la versión.
+// El chip muestra la versión embebida de inmediato (sin esperar al SW).
+setVersionChip(EMBEDDED_VERSION, 'embedded (inicial)');
+
+// Registrar el SW lo antes posible.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     navigator.serviceWorker.register('./sw.js').then(function (reg) {
+        console.log('[version] SW registrado, scope:', reg.scope);
         askSwVersion();
-        // Avisar de nuevas versiones disponibles.
         reg.addEventListener('updatefound', function () {
             const nw = reg.installing;
             if (!nw) return;
@@ -2799,11 +2815,12 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
             });
         });
     }).catch(function (err) {
-        console.warn('Service Worker no registrado:', err);
-        setVersionChip(null);
+        console.warn('[version] SW no registrado:', err);
+        setVersionChip(EMBEDDED_VERSION, 'embedded (SW error)');
     });
 } else {
-    setVersionChip(null);
+    console.warn('[version] SW no registrado (protocolo no permitido):', location.protocol);
+    setVersionChip(EMBEDDED_VERSION, 'embedded (protocolo)');
 }
 </script>
 </body>
