@@ -1,12 +1,15 @@
 /* ======================================================================
-   Service Worker de MiViaje
-   - Cache-first para el shell de la app (offline-first).
+   Service Worker de Mi Viaje
+   - Network-first para el documento HTML (versiones frescas al instante).
+   - Cache-first para assets estáticos (icons, manifest).
+   - Las APIs externas (Firebase, Open-Meteo, OSRM, Nominatim, Wikipedia)
+     pasan siempre a la red: el SW solo intercepta el mismo origen.
    - Versión de la app expuesta al cliente vía postMessage.
    ====================================================================== */
 
 // La versión de la app: cambia este valor con cada release. Se envía al
 // cliente (index.html) para mostrarla en el chip de versión dinámico.
-const APP_VERSION = '1.30.0';
+const APP_VERSION = '1.30.1';
 
 // El nombre del caché lleva la versión: al cambiar APP_VERSION, el SW
 // considera obsoleto el caché anterior y lo purga en 'activate'.
@@ -48,16 +51,41 @@ self.addEventListener('activate', function (event) {
     );
 });
 
-// ---- Fetch: cache-first, fallback a red, y cacheo de navigación --------
+// ---- Fetch -------------------------------------------------------------
 self.addEventListener('fetch', function (event) {
     const req = event.request;
     if (req.method !== 'GET') return;
     // Solo gestionamos peticiones del mismo origen (recursos de la app);
-    // las APIs externas (Firebase, Open-Meteo, OSRM, Nominatim...) pasan
+    // las APIs externas (Firebase, Open-Meteo, OSRM, Nominatim, Wikipedia,
+    // gstatic, Google Maps, Tailwind CDN, fuentes de Google...) pasan
     // siempre a la red para no romper la edición ni mostrar datos viejos.
     const url = new URL(req.url);
     if (url.origin !== self.location.origin) return;
 
+    // 1) Navegaciones y documentos HTML: NETWORK-FIRST.
+    //    Así, tras un despliegue, el usuario recibe la versión fresca del
+    //    index.html sin tener que esperar a un cambio de APP_VERSION.
+    //    El caché solo se usa como fallback offline.
+    if (req.mode === 'navigate' || req.destination === 'document') {
+        event.respondWith(
+            fetch(req).then(function (resp) {
+                if (resp && resp.status === 200) {
+                    const copy = resp.clone();
+                    caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
+                }
+                return resp;
+            }).catch(function () {
+                // Sin red: servir el index.html cacheado (offline).
+                return caches.match(req).then(function (c) {
+                    return c || caches.match('./index.html');
+                });
+            })
+        );
+        return;
+    }
+
+    // 2) Resto de recursos del mismo origen: CACHE-FIRST con fallback a red.
+    //    Adecuado para icons, manifest y otros assets estables.
     event.respondWith(
         caches.match(req).then(function (cached) {
             if (cached) return cached;
@@ -67,12 +95,6 @@ self.addEventListener('fetch', function (event) {
                     caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
                 }
                 return resp;
-            }).catch(function () {
-                // Si la red falla y no está en caché, devolver index.html
-                // para que la SPA siga funcionando offline.
-                if (req.mode === 'navigate') {
-                    return caches.match('./index.html');
-                }
             });
         })
     );
@@ -82,7 +104,6 @@ self.addEventListener('fetch', function (event) {
 self.addEventListener('message', function (event) {
     const data = event.data || {};
     if (data.type === 'GET_VERSION') {
-        // Responder al cliente que preguntó
         event.source && event.source.postMessage({
             type: 'APP_VERSION',
             version: APP_VERSION,
@@ -92,10 +113,4 @@ self.addEventListener('message', function (event) {
     if (data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
-});
-
-// Notificar a todos los clientes cuando el SW toma el control (útil para
-// mostrar "nueva versión disponible" si se quisiera).
-self.addEventListener('controllerchange', function () {
-    // noop: los clientes preguntan la versión ellos mismos
 });
