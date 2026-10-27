@@ -229,6 +229,11 @@
         .home-panel[open] summary .chev { transform: rotate(180deg); }
         .home-panel[open] { padding-bottom: 1rem; }
         html.light-mode .home-panel { background: rgba(255,255,255,0.65); border-color: rgba(15,23,42,0.10); }
+        /* Acordeones de la home (tarjetas + paneles) */
+        .home-acc-header { outline: none; }
+        .home-acc-header .home-acc-chev { transition: transform 0.2s; flex-shrink: 0; }
+        .home-acc-header.open .home-acc-chev { transform: rotate(180deg); }
+        .home-acc-body { animation: fadeIn 0.3s ease-out; }
         /* En pantallas táctiles: objetivos cómodos de 44px y sin zoom automático de iOS */
         @media (pointer: coarse) {
             .btn-icon { width: 44px; height: 44px; }
@@ -1283,6 +1288,8 @@ function renderView() {
     const fn = views[activeTab];
     m.innerHTML = fn ? fn() : '<p class="text-center text-slate-400 mt-20">Pestaña no encontrada</p>';
     initEditables();
+    // En la home, reabrir el acordeón que estaba abierto antes del re-render
+    if (activeTab === 'home') restoreHomeAccordion();
 }
 
 /* ---------- HOME ---------- */
@@ -1314,21 +1321,64 @@ function addPlanDay() {
     saveToFirebase(); renderView(); scheduleRouteFetch();
 }
 
+// Estado del acordeón de la home: id del elemento abierto, o null.
+let homeAccordionOpen = null;
+
+// Alternar un acordeón de la home. Solo puede haber uno abierto.
+function toggleHomeAccordion(id) {
+    const wasOpen = homeAccordionOpen === id;
+    // Cerrar todos
+    document.querySelectorAll('[data-acc-body]').forEach(b => b.classList.add('hidden'));
+    document.querySelectorAll('[data-acc-header]').forEach(h => h.classList.remove('open'));
+    if (!wasOpen) {
+        const body = document.querySelector('[data-acc-body="' + id + '"]');
+        const header = document.querySelector('[data-acc-header="' + id + '"]');
+        if (body) body.classList.remove('hidden');
+        if (header) header.classList.add('open');
+        homeAccordionOpen = id;
+    } else {
+        homeAccordionOpen = null;
+    }
+}
+
+// Tras un re-render (p. ej. al editar un día del plan), reabrir el
+// acordeón que estaba abierto para no perder el contexto de edición.
+function restoreHomeAccordion() {
+    if (!homeAccordionOpen) return;
+    const body = document.querySelector('[data-acc-body="' + homeAccordionOpen + '"]');
+    const header = document.querySelector('[data-acc-header="' + homeAccordionOpen + '"]');
+    if (body) body.classList.remove('hidden');
+    if (header) header.classList.add('open');
+}
+
 function viewHome() {
-    let cardsHtml = S.config.homeCards.map((c, i) => {
+    // Etiqueta de la pestaña destino para el botón "Ir a X"
+    const tabLabel = id => { const t = S.config.tabs.find(t => t.id === id); return t ? t.label : id; };
+
+    // --- Tarjetas de inicio como acordeones ---
+    const cardsHtml = S.config.homeCards.map((c) => {
         const col = CARD_COLORS[c.color] || CARD_COLORS.blue;
-        return `<div onclick="switchTab('${c.targetTab}')" class="bg-gradient-to-br ${col.grad} to-slate-900/50 border ${col.border} rounded-2xl p-6 cursor-pointer hover:-translate-y-1 transition-all duration-300 shadow-xl group relative">
-            <div class="${col.iconBg} w-14 h-14 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><span class="${col.icon}">${c.targetTab === 'weather' ? ICO.cloud : c.targetTab === 'routes' ? ICO.map : ICO.building}</span></div>
-            <h3 class="text-xl font-bold text-white mb-2">${esc(c.title)}</h3>
-            <p class="text-slate-400 text-sm">${esc(c.description)}</p>
+        const accId = 'card-' + c.id;
+        const iconHtml = c.targetTab === 'weather' ? ICO.cloud : c.targetTab === 'routes' ? ICO.map : ICO.building;
+        return `<div class="bg-gradient-to-br ${col.grad} to-slate-900/50 border ${col.border} rounded-2xl shadow-xl overflow-hidden">
+            <button type="button" data-acc-header="${accId}" onclick="toggleHomeAccordion('${accId}')" class="home-acc-header w-full flex items-center gap-3 p-5 text-left transition-colors hover:bg-white/5">
+                <div class="${col.iconBg} w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"><span class="${col.icon}">${iconHtml}</span></div>
+                <span class="text-lg font-bold text-white flex-1">${esc(c.title)}</span>
+                <span class="home-acc-chev text-slate-400">${ICO.chev}</span>
+            </button>
+            <div data-acc-body="${accId}" class="home-acc-body hidden px-5 pb-5">
+                <p class="text-slate-400 text-sm mb-4">${esc(c.description)}</p>
+                <button onclick="switchTab('${c.targetTab}')" class="inline-flex items-center gap-2 ${col.icon} bg-white/5 hover:bg-white/10 border ${col.border} px-4 py-2 rounded-xl text-sm font-medium transition-colors">Ir a ${esc(tabLabel(c.targetTab))} ${ICO.arrow}</button>
+            </div>
         </div>`;
     }).join('');
+
     const cities = (S.config.itineraryText || '').split(' → ').filter(Boolean);
     const itinHtml = cities.length
         ? cities.map((city, i) => `<span class="text-white">${esc(city)}</span>${i < cities.length - 1 ? '<span class="text-blue-400 mx-1">' + ICO.arrow + '</span>' : ''}`).join('')
         : '<span class="text-slate-500 italic">Itinerario pendiente: asigna ciudades a los días de tu plan</span>';
 
-    // Edición en contexto: paneles desplegables siempre disponibles
+    // --- Filas del plan, localidades y pestañas (contenido de los paneles) ---
     const tpRows = S.travelPlan.map((d, i) => `
         <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
             <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; syncItinerary(); saveToFirebase(); scheduleRouteFetch()">
@@ -1355,49 +1405,72 @@ function viewHome() {
         </label>`).join('');
 
     const btnAdd = 'class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"';
+
+    // --- Paneles como acordeones (mismo mecanismo que las tarjetas) ---
     const panels = `
     <datalist id="cities-dl">${Object.keys(S.locations).map(l => `<option value="${esc(l)}">`).join('')}</datalist>
-    <details class="home-panel" open>
-        <summary><span class="text-xl font-bold text-white">Plan de viaje</span><span class="chev">${ICO.chev}</span></summary>
-        <div class="max-w-3xl mx-auto">
-            <div class="flex justify-end mb-3"><button onclick="addPlanDay()" ${btnAdd}>${ICO.plus} Añadir día</button></div>
-            <div class="space-y-2">${tpRows}</div>
-        </div>
-    </details>
-    <details class="home-panel" open>
-        <summary><span class="text-xl font-bold text-white">Localidades y coordenadas</span><span class="chev">${ICO.chev}</span></summary>
-        <div class="max-w-3xl mx-auto">
-            <div class="flex justify-end mb-3"><button onclick="addNewLocation()" ${btnAdd}>${ICO.plus} Añadir localidad</button></div>
-            <div class="space-y-2">${locRows}</div>
-        </div>
-    </details>
-    <details class="home-panel" open>
-        <summary><span class="text-xl font-bold text-white">Ajustes del viaje</span><span class="chev">${ICO.chev}</span></summary>
-        <div class="max-w-md mx-auto">
-            <div class="space-y-3">${tabVis}</div>
-            <div class="flex justify-center gap-4 mt-4">
-                <button onclick="refreshLiveData()" class="text-xs text-blue-400 hover:text-blue-300 underline">Refrescar Clima/Rutas</button>
-                <button onclick="resetToDefaults()" class="text-xs text-red-400 hover:text-red-300 underline">Restaurar originales</button>
+    <div class="home-panel border border-white/10 rounded-2xl bg-white/5 overflow-hidden">
+        <button type="button" data-acc-header="acc-plan" onclick="toggleHomeAccordion('acc-plan')" class="home-acc-header w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-white/5">
+            <span class="text-xl font-bold text-white">Plan de viaje</span>
+            <span class="home-acc-chev text-slate-400">${ICO.chev}</span>
+        </button>
+        <div data-acc-body="acc-plan" class="home-acc-body hidden px-5 pb-5">
+            <div class="max-w-3xl mx-auto">
+                <div class="flex justify-end mb-3"><button onclick="addPlanDay()" ${btnAdd}>${ICO.plus} Añadir día</button></div>
+                <div class="space-y-2">${tpRows}</div>
             </div>
         </div>
-    </details>`;
+    </div>
+    <div class="home-panel border border-white/10 rounded-2xl bg-white/5 overflow-hidden">
+        <button type="button" data-acc-header="acc-loc" onclick="toggleHomeAccordion('acc-loc')" class="home-acc-header w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-white/5">
+            <span class="text-xl font-bold text-white">Localidades y coordenadas</span>
+            <span class="home-acc-chev text-slate-400">${ICO.chev}</span>
+        </button>
+        <div data-acc-body="acc-loc" class="home-acc-body hidden px-5 pb-5">
+            <div class="max-w-3xl mx-auto">
+                <div class="flex justify-end mb-3"><button onclick="addNewLocation()" ${btnAdd}>${ICO.plus} Añadir localidad</button></div>
+                <div class="space-y-2">${locRows}</div>
+            </div>
+        </div>
+    </div>
+    <div class="home-panel border border-white/10 rounded-2xl bg-white/5 overflow-hidden">
+        <button type="button" data-acc-header="acc-adj" onclick="toggleHomeAccordion('acc-adj')" class="home-acc-header w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-white/5">
+            <span class="text-xl font-bold text-white">Ajustes del viaje</span>
+            <span class="home-acc-chev text-slate-400">${ICO.chev}</span>
+        </button>
+        <div data-acc-body="acc-adj" class="home-acc-body hidden px-5 pb-5">
+            <div class="max-w-md mx-auto">
+                <div class="space-y-3">${tabVis}</div>
+                <div class="flex justify-center gap-4 mt-4">
+                    <button onclick="refreshLiveData()" class="text-xs text-blue-400 hover:text-blue-300 underline">Refrescar Clima/Rutas</button>
+                    <button onclick="resetToDefaults()" class="text-xs text-red-400 hover:text-red-300 underline">Restaurar originales</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
 
     return `<div class="fade-in">
         <header class="text-center mt-4 sm:mt-8 mb-8 sm:mb-12">
             <h1 class="font-bold text-white mb-4 tracking-tight" style="font-size: clamp(2.2rem, 9vw, 3.75rem);"><span class="text-blue-300">Viaje:&nbsp;</span><span>${esc(S.config.title)}</span></h1>
             <p class="text-blue-300 text-xl font-medium">${esc(tripSubtitle())}</p>
             <p class="text-slate-400 mt-4 max-w-2xl mx-auto">${esc(S.config.description)}</p>
-            <p class="text-slate-500 text-xs mt-3">Usa el botón <span class="text-blue-400">✎</span> del panel superior para editar el nombre, las fechas o la descripción del viaje. Los paneles de abajo te permiten ajustar el plan, las localidades y las pestañas visibles.</p>
+            <p class="text-slate-500 text-xs mt-3">Pulsa sobre una tarjeta o panel para desplegar su contenido. Solo puede haber uno abierto a la vez.</p>
         </header>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">${cardsHtml}</div>
-        <div class="mt-12 bg-white/5 border border-white/10 rounded-2xl p-6 text-center relative">
-            <button onclick="openEditModal('tripInfo', 0)" class="btn-icon btn-edit absolute top-3 right-3" title="Editar itinerario">${ICO.edit}</button>
-            <h4 class="text-slate-300 font-semibold mb-2">El itinerario</h4>
-            <p class="text-slate-400 text-sm flex flex-wrap justify-center items-center gap-1 pr-8">${itinHtml}</p>
+        <div class="mt-8 space-y-4">
+            <div class="home-panel border border-white/10 rounded-2xl bg-white/5 overflow-hidden">
+                <button type="button" data-acc-header="acc-itin" onclick="toggleHomeAccordion('acc-itin')" class="home-acc-header w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-white/5">
+                    <span class="text-lg font-bold text-slate-300">El itinerario</span>
+                    <span class="home-acc-chev text-slate-400">${ICO.chev}</span>
+                </button>
+                <div data-acc-body="acc-itin" class="home-acc-body hidden px-5 pb-5">
+                    <p class="text-slate-400 text-sm flex flex-wrap justify-center items-center gap-1">${itinHtml}</p>
+                </div>
+            </div>
+            ${panels}
         </div>
-        ${panels}    </div>`;
+    </div>`;
 }
-
 /* ---------- WEATHER ---------- */
 function getWeatherDesc(code) {
     const d = {0:'Despejado',1:'Poco nublado',2:'Nubes parciales',3:'Nublado',45:'Niebla',51:'Llovizna',61:'Lluvia',80:'Chubascos',95:'Tormenta'};
