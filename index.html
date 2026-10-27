@@ -2854,11 +2854,33 @@ const EMBEDDED_VERSION = '1.31.2';
 
 // Versión actual mostrada en el chip (para restaurarla tras re-renders).
 let _currentVersion = null;
+
+// Comparación semántica de versiones 'X.Y.Z'.
+// Devuelve: negativo si a < b, 0 si iguales, positivo si a > b.
+function compareVersions(a, b) {
+    const pa = String(a || '0').split('.').map(Number);
+    const pb = String(b || '0').split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+        const va = pa[i] || 0, vb = pb[i] || 0;
+        if (va !== vb) return va - vb;
+    }
+    return 0;
+}
+
+// Actualiza el chip. NUNCA retrocede a una versión menor que la actual
+// (la embebida del HTML es la ground truth de lo desplegado; el SW solo
+// confirma, no puede mostrar una versión anterior).
 function setVersionChip(v, source) {
     const chip = document.getElementById('app-version');
     if (!chip) return;
-    chip.textContent = v ? ('v' + v) : 'v—';
-    if (v) _currentVersion = v;
+    if (!v) { chip.textContent = 'v—'; return; }
+    // Si ya tenemos una versión y la nueva es menor, ignorarla
+    // (es un SW viejo que aún no se ha actualizado).
+    if (_currentVersion && compareVersions(v, _currentVersion) < 0) {
+        return;  // mantener la versión actual (mayor)
+    }
+    chip.textContent = 'v' + v;
+    _currentVersion = v;
 }
 // Tras un re-render de la home, el chip #app-version se recrea con el
 // texto por defecto (v1.31.2). Esta función restaura la versión real si
@@ -2914,8 +2936,14 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function (event) {
         const d = event.data || {};
         if (d.type === 'APP_VERSION' && d.version) {
-            // Cancelar timeout y marcar como resuelto: NO volver a
-            // interrogar al SW (evita parpadeos).
+            // Si la versión del SW es menor que la embebida, es un SW
+            // viejo que aún no se ha actualizado. Ignorarla: mantener
+            // la embebida y NO marcar como resuelto (el SW nuevo
+            // disparará controllerchange y se volverá a interrogar).
+            if (compareVersions(d.version, EMBEDDED_VERSION) < 0) {
+                return;
+            }
+            // Versión válida (>= embebida): cancelar timeout y fijar.
             if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
             _swVersionResolved = true;
             setVersionChip(d.version, 'sw');
@@ -2929,6 +2957,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // El chip muestra la versión embebida de inmediato (sin esperar al SW).
+_currentVersion = EMBEDDED_VERSION;  // ground truth: nunca bajar de aquí
 setVersionChip(EMBEDDED_VERSION, 'embedded (inicial)');
 
 // Registrar el SW lo antes posible.
