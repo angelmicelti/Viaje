@@ -336,6 +336,7 @@
                 <div class="flex-shrink-0 flex items-center cursor-pointer gap-2" onclick="switchTab('home')" title="Ir a Inicio">
                     <svg class="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>
                     <span id="nav-appname" class="font-bold text-white text-base sm:text-lg tracking-tight hidden sm:block">Mi Viaje</span>
+                    <button id="app-version" type="button" title="Versión de la app" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-mono font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40 hover:text-blue-200 transition-colors print:hidden">v1.30.3</button>
                 </div>
 
                 <!-- Divisor (escritorio) -->
@@ -578,7 +579,6 @@ const ROOT = "viajePlanner";
    ====================================================================== */
 const DEFAULTS = {
     config: {
-        appName: "Mi Viaje",
         title: "Viaje Verano 2026",
         subtitle: "Julio - Agosto",
         description: "Tu viaje al norte y centro de España organizado en un solo lugar. Accede rápidamente al clima, tu itinerario de ruta y los datos de contacto de tus hoteles.",
@@ -794,7 +794,6 @@ function defaultTripData(name, start, end) {
     }
     return {
         config: {
-            appName: (S && S.config && S.config.appName) || 'Mi Viaje',
             title: name,
             subtitle: monthsLabel(start, end),
             description: 'Planifica este viaje al detalle: clima día a día, rutas entre etapas, reservas y alojamientos.',
@@ -899,7 +898,7 @@ function applyActiveTrip() {
     }
     S = t.data;
     syncItinerary();
-    applyTripLock(); // aplicar bloqueo del viaje finalizado
+    applyTripLock();
 }
 
 function buildLegacyTrip(data, startDate, endDate) {
@@ -1043,8 +1042,6 @@ function renderEditForm(type, idx) {
         const c = S.config;
         const t = getActiveTrip() || {};
         return `
-            <div><label class="block text-sm text-slate-300 mb-1 font-medium">Nombre de la app (navbar)</label>
-                <input class="edit-input" data-field="appName" value="${esc(c.appName)}" placeholder="p. ej. Mi Viaje"></div>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Título del viaje</label>
                 <input class="edit-input" data-field="title" value="${esc(c.title)}" placeholder="p. ej. Viaje Verano 2026"></div>
             <div><label class="block text-sm text-slate-300 mb-1 font-medium">Subtítulo (mes/año)</label>
@@ -1214,11 +1211,6 @@ function saveEditModal() {
     };
 
     if (type === 'tripInfo') {
-        if (getVal('appName')) {
-            S.config.appName = getVal('appName');
-            const navEl = document.getElementById('nav-appname');
-            if (navEl) navEl.textContent = S.config.appName;
-        }
         S.config.title = getVal('title') || S.config.title;
         S.config.description = getVal('description');
         syncItinerary();
@@ -1541,7 +1533,7 @@ function viewHome() {
 
     return `<div class="fade-in">
         <header class="text-center mt-4 sm:mt-8 mb-8 sm:mb-12">
-            <h1 class="font-bold text-white mb-4 tracking-tight flex items-center justify-center gap-3 flex-wrap" style="font-size: clamp(2.2rem, 9vw, 3.75rem);"><span class="text-blue-300">Viaje:&nbsp;</span><span>${esc(S.config.title)}</span><button id="app-version" type="button" title="Versión de la app" class="px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40 hover:text-blue-200 transition-colors print:hidden shadow-lg align-middle" style="font-size: 11px;">v1.30.3</button></h1>
+            <h1 class="font-bold text-white mb-4 tracking-tight" style="font-size: clamp(2.2rem, 9vw, 3.75rem);"><span class="text-blue-300">Viaje:&nbsp;</span><span>${esc(S.config.title)}</span></h1>
             <p class="text-blue-300 text-xl font-medium">${esc(tripSubtitle())}</p>
             <p class="text-slate-400 mt-4 max-w-2xl mx-auto">${esc(S.config.description)}</p>
             <p class="text-slate-500 text-xs mt-3">Pulsa sobre una tarjeta o panel para desplegar su contenido. Solo puede haber uno abierto a la vez.</p>
@@ -2308,7 +2300,6 @@ function switchTrip(id) {
     applyActiveTrip();
     // Solo el admin cambia el viaje activo para el resto de usuarios
     if (isAdmin()) db.ref(ROOT + '/activeTripId').set(id);
-    document.getElementById('nav-appname').textContent = S.config.appName || 'Mi Viaje';
     switchTab(activeTab);
 }
 
@@ -2419,7 +2410,7 @@ function buildPrintDoc() {
     const aloHtml = S.accommodations.map(h => `<tr><td>${esc(h.city)}</td><td><b>${esc(h.name)}</b></td><td>${esc(h.type)}</td><td>${esc(h.phone)}</td></tr>`).join('');
 
     let html = `
-    <div class="pdf-meta"><span>${esc(c.appName || 'Mi Viaje')}</span><span>Generado el ${generado}</span></div>
+    <div class="pdf-meta"><span>Mi Viaje</span><span>Generado el ${generado}</span></div>
     <h1><span class="pdf-label">Viaje:</span> ${esc(c.title || '')}</h1>
     <p class="pdf-sub">${esc(tripSubtitle())}${rango ? ' · ' + rango : ''}</p>
     ${c.description ? `<p class="pdf-desc">${esc(c.description)}</p>` : ''}`;
@@ -2800,7 +2791,6 @@ function renderApp() {
     document.getElementById('navbar').classList.remove('hidden');
     document.getElementById('main-content').classList.remove('hidden');
     document.body.classList.toggle('role-user', !isAdmin());
-    document.getElementById('nav-appname').textContent = S.config.appName || 'Mi Viaje';
     applyTripLock(); // aplicar bloqueo del viaje activo (finalizado)
     askSwVersion();
     renderUserChip();
