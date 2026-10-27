@@ -1,96 +1,101 @@
 /* ======================================================================
-   Service Worker de MiViaje (PWA)
-   - Precachea la interfaz (HTML, manifest, iconos)
-   - Caché en tiempo de ejecución para SDK de Firebase, Tailwind y fuentes
-   - Navegación: red primero con respaldo en caché (uso sin conexión)
-   - Las APIs de datos (Firebase RTDB, Open-Meteo, OSRM) van siempre a la red
-   Para publicar una versión nueva, cambia VERSION (p. ej. v2, v3…).
+   Service Worker de MiViaje
+   - Cache-first para el shell de la app (offline-first).
+   - Versión de la app expuesta al cliente vía postMessage.
    ====================================================================== */
-const VERSION = 'v1.28';
-const CACHE_STATIC = 'miviaje-static-' + VERSION;
-const CACHE_RUNTIME = 'miviaje-runtime-' + VERSION;
-const APP_SHELL = './index.html';
-const PRECACHE = [
-    APP_SHELL,
+
+// La versión de la app: cambia este valor con cada release. Se envía al
+// cliente (index.html) para mostrarla en el chip de versión dinámico.
+const APP_VERSION = '1.28.0';
+
+// El nombre del caché lleva la versión: al cambiar APP_VERSION, el SW
+// considera obsoleto el caché anterior y lo purga en 'activate'.
+const CACHE_NAME = 'miviaje-v' + APP_VERSION;
+
+// Shell de la app (recursos del mismo origen que index.html).
+const APP_SHELL = [
+    './',
+    './index.html',
     './manifest.json',
-    './icons/icon-192.png',
-    './icons/icon-512.png',
-    './icons/icon-maskable-192.png',
-    './icons/icon-maskable-512.png',
-    './icons/apple-touch-icon.png',
     './icons/favicon-32.png',
-    './icons/favicon-16.png'
+    './icons/favicon-16.png',
+    './icons/apple-touch-icon.png'
 ];
-const CDN_RE = /(^|\.)(gstatic|googleapis|cdn\.tailwindcss)\.com$/;
 
-self.addEventListener('install', event => {
+// ---- Instalación: precachear el shell ----------------------------------
+self.addEventListener('install', function (event) {
     event.waitUntil(
-        caches.open(CACHE_STATIC)
-            .then(cache => cache.addAll(PRECACHE))
-            .then(() => self.skipWaiting())
+        caches.open(CACHE_NAME).then(function (cache) {
+            // addAll falla si algún recurso no existe; lo toleramos
+            return cache.addAll(APP_SHELL).catch(function () {});
+        }).then(function () {
+            return self.skipWaiting();
+        })
     );
 });
 
-self.addEventListener('activate', event => {
+// ---- Activación: purgar cachés antiguas y tomar el control -------------
+self.addEventListener('activate', function (event) {
     event.waitUntil(
-        caches.keys()
-            .then(keys => Promise.all(
-                keys.filter(k => k.startsWith('miviaje-') && k !== CACHE_STATIC && k !== CACHE_RUNTIME)
-                    .map(k => caches.delete(k))
-            ))
-            .then(() => self.clients.claim())
+        caches.keys().then(function (keys) {
+            return Promise.all(
+                keys.filter(function (k) { return k !== CACHE_NAME; })
+                    .map(function (k) { return caches.delete(k); })
+            );
+        }).then(function () {
+            return self.clients.claim();
+        })
     );
 });
 
-self.addEventListener('fetch', event => {
+// ---- Fetch: cache-first, fallback a red, y cacheo de navigación --------
+self.addEventListener('fetch', function (event) {
     const req = event.request;
     if (req.method !== 'GET') return;
+    // Solo gestionamos peticiones del mismo origen (recursos de la app);
+    // las APIs externas (Firebase, Open-Meteo, OSRM, Nominatim...) pasan
+    // siempre a la red para no romper la edición ni mostrar datos viejos.
+    const url = new URL(req.url);
+    if (url.origin !== self.location.origin) return;
 
-    let url;
-    try { url = new URL(req.url); } catch (e) { return; }
+    event.respondWith(
+        caches.match(req).then(function (cached) {
+            if (cached) return cached;
+            return fetch(req).then(function (resp) {
+                if (resp && resp.status === 200 && resp.type === 'basic') {
+                    const copy = resp.clone();
+                    caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
+                }
+                return resp;
+            }).catch(function () {
+                // Si la red falla y no está en caché, devolver index.html
+                // para que la SPA siga funcionando offline.
+                if (req.mode === 'navigate') {
+                    return caches.match('./index.html');
+                }
+            });
+        })
+    );
+});
 
-    // APIs de datos: siempre red (nunca se sirven datos obsoletos de caché)
-    if (url.hostname.endsWith('firebasedatabase.app') ||
-        url.hostname.endsWith('open-meteo.com') ||
-        url.hostname.endsWith('project-osrm.org')) {
-        return;
+// ---- Mensajes del cliente: responder con la versión --------------------
+self.addEventListener('message', function (event) {
+    const data = event.data || {};
+    if (data.type === 'GET_VERSION') {
+        // Responder al cliente que preguntó
+        event.source && event.source.postMessage({
+            type: 'APP_VERSION',
+            version: APP_VERSION,
+            cacheName: CACHE_NAME
+        });
     }
-
-    // Navegación: red primero; sin conexión, la interfaz precacheada.
-    // Solo se actualiza la caché del shell cuando la página navegada ES la app
-    // (otras páginas del mismo origen, p. ej. ViajeEstatico.html, no deben pisarla).
-    if (req.mode === 'navigate') {
-        const esApp = url.pathname.endsWith('index.html') || /\/$/.test(url.pathname);
-        event.respondWith(
-            fetch(req)
-                .then(res => {
-                    if (esApp && res.ok) {
-                        const copy = res.clone();
-                        caches.open(CACHE_STATIC).then(c => c.put(APP_SHELL, copy));
-                    }
-                    return res;
-                })
-                .catch(() => caches.match(APP_SHELL))
-        );
-        return;
+    if (data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
     }
+});
 
-    // Estáticos propios y CDNs (Firebase SDK, Tailwind, fuentes): caché primero,
-    // con actualización en segundo plano para la próxima visita
-    const esMismoOrigen = url.origin === self.location.origin;
-    const esCDN = CDN_RE.test(url.hostname);
-    if (esMismoOrigen || esCDN) {
-        event.respondWith(
-            caches.match(req).then(hit => {
-                const net = fetch(req).then(res => {
-                    if (res && (res.ok || res.type === 'opaque')) {
-                        const copy = res.clone();
-                        caches.open(CACHE_RUNTIME).then(c => c.put(req, copy));
-                    }
-                    return res;
-                }).catch(() => hit);
-                return hit || net;
-            })
-        );
-    }
+// Notificar a todos los clientes cuando el SW toma el control (útil para
+// mostrar "nueva versión disponible" si se quisiera).
+self.addEventListener('controllerchange', function () {
+    // noop: los clientes preguntan la versión ellos mismos
 });
