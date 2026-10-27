@@ -327,7 +327,7 @@
 <body>
 
     <!-- Chip de versión global (siempre visible, fuera del navbar) -->
-    <button id="app-version" type="button" title="Versión de la app" class="fixed bottom-3 right-3 z-[60] px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-slate-900/70 text-blue-300 border border-blue-500/50 backdrop-blur-sm hover:bg-slate-800/90 hover:text-blue-200 transition-colors print:hidden shadow-lg">v1.30.0</button>
+    <button id="app-version" type="button" title="Versión de la app" class="fixed bottom-3 right-3 z-[60] px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-slate-900/70 text-blue-300 border border-blue-500/50 backdrop-blur-sm hover:bg-slate-800/90 hover:text-blue-200 transition-colors print:hidden shadow-lg">v1.30.3</button>
 
     <!-- ============ NAVBAR (oculto hasta iniciar sesión) ============ -->
     <nav id="navbar" class="hidden bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-40 shadow-lg" style="padding-top: env(safe-area-inset-top, 0px);">
@@ -2735,7 +2735,7 @@ setTimeout(tryStart, 4000);
 // Service Worker (PWA): instala la app, habilita offline y expone la versión.
 // Versión embebida en el HTML (fallback inmediato si el SW no responde).
 // Se sincroniza con APP_VERSION de sw.js al desplegar.
-const EMBEDDED_VERSION = '1.30.0';
+const EMBEDDED_VERSION = '1.30.3';
 
 function setVersionChip(v, source) {
     const chip = document.getElementById('app-version');
@@ -2744,34 +2744,41 @@ function setVersionChip(v, source) {
     if (v) console.log('[version] chip actualizado a v' + v + ' (' + (source||'?') + ')');
 }
 
-// Reintentos cíclicos para cubrir el caso en que el SW aún no es
-// controller (primera carga) o el controllerchange llega antes de
-// registrar el listener.
+// Consulta de versión al SW con timeout (sin reintentos ciegos que
+// provoquen parpadeo). Hay dos modos:
+//  - Sin controller todavía: reintentar cada 500ms hasta que aparezca.
+//  - Con controller: enviar GET_VERSION y esperar respuesta con timeout
+//    de 2s; si no llega, reintentar (hasta 5 veces).
 let _swVersionAttempts = 0;
 let _swVersionTimer = null;
+let _swVersionResolved = false;   // true en cuanto el SW responde
+
 function askSwVersion() {
     if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
+    if (_swVersionResolved) return;  // ya tenemos la versión del SW, no reintentar
     if (!('serviceWorker' in navigator)) {
         console.warn('[version] serviceWorker no soportado');
         setVersionChip(EMBEDDED_VERSION, 'embedded (no SW)');
         return;
     }
     if (navigator.serviceWorker.controller) {
-        // Hay controller: preguntar y esperar respuesta (con reintento
-        // por si el mensaje se pierde).
+        // Hay controller: enviar GET_VERSION y programar un TIMEOUT
+        // (no un reintento inmediato). Si la respuesta llega antes,
+        // el listener cancelará este timer.
         try {
             navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
-            console.log('[version] GET_VERSION enviado al SW');
+            console.log('[version] GET_VERSION enviado al SW (intento ' + (_swVersionAttempts + 1) + ')');
         } catch (e) { console.error('[version] error enviando GET_VERSION:', e); }
         _swVersionAttempts++;
-        if (_swVersionAttempts < 12) {
-            _swVersionTimer = setTimeout(askSwVersion, 500);
+        if (_swVersionAttempts < 5) {
+            _swVersionTimer = setTimeout(askSwVersion, 2000);  // timeout, no reintento ciego
         } else {
-            // Si tras 12 intentos no hay respuesta, usar la versión embebida.
+            // Si tras 5 intentos (10s) no hay respuesta, usar la embebida.
+            console.warn('[version] SW no responde tras 5 intentos; usando versión embebida');
             setVersionChip(EMBEDDED_VERSION, 'embedded (SW no responde)');
         }
     } else {
-        // Aún no hay controller: reintentar.
+        // Aún no hay controller: reintentar cada 500ms hasta que llegue.
         _swVersionAttempts++;
         if (_swVersionAttempts < 20) {
             _swVersionTimer = setTimeout(askSwVersion, 500);
@@ -2785,14 +2792,17 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function (event) {
         const d = event.data || {};
         if (d.type === 'APP_VERSION' && d.version) {
+            // Cancelar timeout y marcar como resuelto: NO volver a
+            // interrogar al SW (evita parpadeos).
             if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
-            _swVersionAttempts = 999;
+            _swVersionResolved = true;
             setVersionChip(d.version, 'sw');
         }
     });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
         console.log('[version] controllerchange detectado');
         _swVersionAttempts = 0;
+        _swVersionResolved = false;  // nuevo SW: volver a interrogar
         askSwVersion();
     });
 }
