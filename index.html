@@ -2576,6 +2576,9 @@ function renderApp() {
     document.getElementById('main-content').classList.remove('hidden');
     document.body.classList.toggle('role-user', !isAdmin());
     document.getElementById('nav-appname').textContent = S.config.appName || 'Mi Viaje';
+    // El chip de versión está dentro del navbar: ahora que es visible,
+    // interrogar al SW por si la consulta inicial no encontró el elemento.
+    askSwVersion();
     renderUserChip();
     renderTabs();
     renderView();
@@ -2606,8 +2609,12 @@ function setVersionChip(v) {
     }
 }
 function askSwVersion() {
-    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
-        setVersionChip(null);
+    if (!('serviceWorker' in navigator)) { setVersionChip(null); return; }
+    if (!navigator.serviceWorker.controller) {
+        // El SW aún no es controller (primera carga). No mostrar 'v—':
+        // esperar a que controllerchange dispare una nueva llamada.
+        // Reintento de seguridad por si el evento llegó antes del listener.
+        setTimeout(askSwVersion, 800);
         return;
     }
     navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
