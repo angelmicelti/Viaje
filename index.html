@@ -602,7 +602,7 @@ const DEFAULTS = {
             { id: "map", label: "Mapa", visible: true, icon: "pin" },
             { id: "reservas", label: "Reservas", visible: true, icon: "calendar" },
             { id: "accom", label: "Hoteles", visible: true, icon: "building" },
-            { id: "trips", label: "Viajes", visible: true, icon: "list" }
+            { id: "trips", label: "Mis viajes", visible: true, icon: "list" }
         ],
         homeCards: [
             { id: "cw", title: "Clima en Vivo", description: "Consulta las temperaturas, viento y precipitaciones de cada ciudad en la fecha exacta de tu llegada.", color: "blue", targetTab: "weather" },
@@ -831,6 +831,15 @@ function normalizeTripData(data) {
     if (!d.locations) d.locations = {};
     if (!d.config) d.config = {};
     d.config.tabs = arrFrom(d.config.tabs);
+    // Migración: asegurar que existe la pestaña 'Mis viajes' (trips)
+    // en viajes creados antes de que se añadiese esta pestaña.
+    if (!d.config.tabs.some(t => t.id === 'trips')) {
+        d.config.tabs.push({ id: 'trips', label: 'Mis viajes', visible: true, icon: 'list' });
+    } else {
+        // Si ya existe pero con la etiqueta antigua 'Viajes', renombrarla.
+        const tripsTab = d.config.tabs.find(t => t.id === 'trips');
+        if (tripsTab.label === 'Viajes') tripsTab.label = 'Mis viajes';
+    }
     d.config.homeCards = arrFrom(d.config.homeCards);
     d.config.customRoutes = arrFrom(d.config.customRoutes);
     if (!d.config.mapRadii || typeof d.config.mapRadii !== 'object' || Array.isArray(d.config.mapRadii)) d.config.mapRadii = {};
