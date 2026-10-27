@@ -263,6 +263,19 @@
         body.role-user #main-content .btn-edit { display: none !important; }
         body.role-user [data-editable] { cursor: default; }
         body.role-user [data-editable]:hover { outline: none; background: transparent; }
+        /* Viaje finalizado bloqueado: mismo comportamiento que role-user,
+           pero los botones .btn-unlock siguen activos para desbloquear. */
+        body.trip-locked #main-content button:not(.btn-unlock):not(.nav-tab),
+        body.trip-locked #main-content input,
+        body.trip-locked #main-content select,
+        body.trip-locked #main-content textarea { pointer-events: none; }
+        body.trip-locked #main-content .btn-icon:not(.btn-unlock),
+        body.trip-locked #main-content .btn-add,
+        body.trip-locked #main-content .btn-edit { display: none !important; }
+        body.trip-locked [data-editable] { cursor: default; }
+        body.trip-locked [data-editable]:hover { outline: none; background: transparent; }
+        /* Banda de aviso superior cuando el viaje está bloqueado */
+        #trip-locked-banner { background: linear-gradient(90deg, rgba(245,158,11,0.18), rgba(245,158,11,0.08)); border-bottom: 1px solid rgba(245,158,11,0.4); color: #fbbf24; }
         /* ==================================================================
            PANTALLA DE LOGIN — contraste garantizado en día y noche
            ================================================================== */
@@ -328,9 +341,9 @@
                 <!-- Divisor (escritorio) -->
                 <div class="hidden md:block h-7 w-px bg-slate-700/70 mx-0.5"></div>
 
-                <!-- Grupo de viaje: selector + editar + nuevo -->
-                <div class="flex items-center gap-1.5 min-w-0 flex-1 md:flex-none">
-                    <select id="trip-select" onchange="switchTrip(this.value)" title="Cambiar de viaje" class="bg-slate-800/80 border border-slate-600 text-slate-200 text-xs sm:text-sm rounded-lg px-3 py-2 min-w-0 flex-1 md:flex-none md:min-w-[200px] max-w-[260px] focus:outline-none focus:border-blue-400 transition-colors"></select>
+                <!-- Grupo de viaje: editar actual + nuevo (el cambio de viaje
+                     se hace desde la pestaña "Viajes") -->
+                <div class="flex items-center gap-1.5">
                     <button id="btn-edit-trip" onclick="openEditModal('tripInfo', 0)" title="Editar viaje actual (nombre, fechas, descripción...)" class="btn-icon btn-edit">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     </button>
@@ -375,6 +388,12 @@
     <main class="hidden flex-grow w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8" id="main-content">
         <!-- Dynamic content rendered by JS -->
     </main>
+
+    <!-- ============ BANNER DE VIAJE BLOQUEADO (finalizado) ============ -->
+    <div id="trip-locked-banner" class="hidden sticky top-0 z-30 px-4 py-2 text-center text-sm font-medium">
+        <span id="trip-locked-text">Este viaje ha finalizado y está bloqueado para edición.</span> 
+        <button onclick="unlockActiveTrip()" class="btn-unlock underline hover:no-underline ml-2 font-semibold">Desbloquear</button>
+    </div>
 
     <!-- ============ FLOATING HOME BTN ============ -->
     <button id="fab-home" onclick="switchTab('home')" class="fixed bottom-6 right-6 z-40 bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 hidden">
@@ -571,7 +590,8 @@ const DEFAULTS = {
             { id: "routes", label: "Rutas", visible: true, icon: "map" },
             { id: "map", label: "Mapa", visible: true, icon: "pin" },
             { id: "reservas", label: "Reservas", visible: true, icon: "calendar" },
-            { id: "accom", label: "Hoteles", visible: true, icon: "building" }
+            { id: "accom", label: "Hoteles", visible: true, icon: "building" },
+            { id: "trips", label: "Viajes", visible: true, icon: "list" }
         ],
         homeCards: [
             { id: "cw", title: "Clima en Vivo", description: "Consulta las temperaturas, viento y precipitaciones de cada ciudad en la fecha exacta de tu llegada.", color: "blue", targetTab: "weather" },
@@ -649,6 +669,9 @@ const ICO = {
     close: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
     search: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>',
     web: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>',
+    list: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>',
+    lock: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>',
+    unlock: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V5a4 4 0 014-4"/></svg>',
 };
 
 const CARD_COLORS = {
@@ -805,11 +828,64 @@ function normalizeTripData(data) {
 }
 
 function normalizeTrip(t) {
-    return { id: t.id || 'v-' + uid(), createdAt: t.createdAt || '', startDate: t.startDate || '', endDate: t.endDate || '', source: t.source || '', data: normalizeTripData(t.data) };
+    return { id: t.id || 'v-' + uid(), createdAt: t.createdAt || '', startDate: t.startDate || '', endDate: t.endDate || '', source: t.source || '', unlocked: !!t.unlocked, data: normalizeTripData(t.data) };
 }
 
 function getActiveTrip() {
     return App.trips.find(t => t.id === App.activeTripId) || null;
+}
+
+// Un viaje está finalizado si su fecha de fin ya pasó.
+function isTripFinished(trip) {
+    if (!trip) return false;
+    const end = trip.endDate;
+    if (!end) return false;
+    const today = isoLocal(new Date());
+    return end < today;
+}
+// Un viaje está bloqueado cuando está finalizado Y no se ha
+// desbloqueado manualmente.
+function isTripLocked(trip) {
+    return isTripFinished(trip) && !(trip && trip.unlocked);
+}
+// Desbloquear el viaje activo para edición (persiste el flag en Firebase).
+function unlockActiveTrip() {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede desbloquear viajes', 2500); return; }
+    const t = getActiveTrip();
+    if (!t) return;
+    t.unlocked = true;
+    db.ref(ROOT + '/trips/' + t.id + '/unlocked').set(true);
+    document.body.classList.remove('trip-locked');
+    renderView();
+    showToast('Viaje desbloqueado para edición', 1800);
+}
+// Volver a bloquear el viaje activo (oculta el flag de desbloqueo).
+function lockActiveTrip() {
+    if (!isAdmin()) return;
+    const t = getActiveTrip();
+    if (!t) return;
+    t.unlocked = false;
+    db.ref(ROOT + '/trips/' + t.id + '/unlocked').set(false);
+    applyTripLock();
+    renderView();
+    showToast('Viaje bloqueado', 1500);
+}
+// Aplica o quita la clase trip-locked según el viaje activo y
+// muestra/oculta el banner superior de aviso.
+function applyTripLock() {
+    const t = getActiveTrip();
+    const locked = isAdmin() && isTripLocked(t);
+    document.body.classList.toggle('trip-locked', locked);
+    const banner = document.getElementById('trip-locked-banner');
+    if (banner) {
+        if (locked) {
+            banner.classList.remove('hidden');
+            const txt = document.getElementById('trip-locked-text');
+            if (txt && t) txt.textContent = `«${t.data.config.title || 'Viaje'}» ha finalizado y está bloqueado para edición.`;
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
 }
 
 function applyActiveTrip() {
@@ -822,7 +898,8 @@ function applyActiveTrip() {
         forecastData = []; routeLegs = [];
     }
     S = t.data;
-    syncItinerary(); // mantener el itinerario derivado coherente con el plan al cambiar de viaje
+    syncItinerary();
+    applyTripLock(); // aplicar bloqueo del viaje finalizado
 }
 
 function buildLegacyTrip(data, startDate, endDate) {
@@ -1284,7 +1361,7 @@ function renderTabs() {
 function renderView() {
     renderTripSelector();
     const m = document.getElementById('main-content');
-    const views = { home: viewHome, weather: viewWeather, routes: viewRoutes, map: viewMap, reservas: viewReservas, accom: viewAccom };
+    const views = { home: viewHome, weather: viewWeather, routes: viewRoutes, map: viewMap, reservas: viewReservas, accom: viewAccom, trips: viewTrips };
     const fn = views[activeTab];
     m.innerHTML = fn ? fn() : '<p class="text-center text-slate-400 mt-20">Pestaña no encontrada</p>';
     initEditables();
@@ -1471,6 +1548,75 @@ function viewHome() {
         </div>
     </div>`;
 }
+/* ---------- TRIPS (Listado de viajes) ---------- */
+function viewTrips() {
+    const fmt = dt => dt ? new Date(dt + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    const fmtShort = dt => dt ? new Date(dt + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
+    const today = isoLocal(new Date());
+    const rows = App.trips.slice().sort((a, b) => (b.startDate || '').localeCompare(a.startDate || '')).map(t => {
+        const isActive = t.id === App.activeTripId;
+        const finished = isTripFinished(t);
+        const locked = isTripLocked(t);
+        const title = t.data.config.title || 'Viaje sin nombre';
+        const dates = (t.startDate && t.endDate) ? `${fmtShort(t.startDate)} – ${fmtShort(t.endDate)}` : 'Sin fechas';
+        const statusBadge = finished
+            ? (locked
+                ? `<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-300 border border-amber-500/40">${ICO.lock} Finalizado · bloqueado</span>`
+                : `<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-300 border border-emerald-500/40">${ICO.unlock} Finalizado · desbloqueado</span>`)
+            : `<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/30 text-blue-300 border border-blue-500/40">${ICO.calendar} Próximo</span>`;
+        const activeBadge = isActive ? `<span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/40">Activo</span>` : '';
+        const openBtn = isActive
+            ? `<button onclick="switchTab('home')" class="btn-icon bg-slate-800/80 border border-slate-600 hover:border-blue-400 text-slate-300" title="Ya abierto · ir a Inicio">${ICO.home}</button>`
+            : `<button onclick="switchTrip('${t.id}'); switchTab('home')" class="btn-icon bg-blue-600/80 hover:bg-blue-500 text-white" title="Abrir este viaje">${ICO.arrow}</button>`;
+        const editBtn = `<button onclick="switchTrip('${t.id}'); setTimeout(()=>openEditModal('tripInfo',0),50)" class="btn-icon btn-edit" title="Editar info del viaje">${ICO.edit}</button>`;
+        const lockBtn = finished
+            ? (locked
+                ? `<button onclick="switchTrip('${t.id}'); setTimeout(unlockActiveTrip,50)" class="btn-icon btn-unlock bg-amber-600/80 hover:bg-amber-500 text-white" title="Desbloquear para edición">${ICO.unlock}</button>`
+                : `<button onclick="switchTrip('${t.id}'); setTimeout(lockActiveTrip,50)" class="btn-icon btn-unlock bg-slate-800/80 border border-slate-600 hover:border-amber-400 text-amber-300" title="Volver a bloquear">${ICO.lock}</button>`)
+            : '';
+        const delBtn = (App.trips.length > 1)
+            ? `<button onclick="deleteTrip('${t.id}')" class="btn-icon btn-delete" title="Eliminar viaje">${ICO.trash}</button>`
+            : '';
+        return `<div class="bg-white/5 border ${isActive ? 'border-blue-500/50' : 'border-white/10'} rounded-2xl p-5 shadow-lg fade-in">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 class="text-lg font-bold text-white truncate">${esc(title)}</h3>
+                        ${activeBadge}
+                    </div>
+                    <p class="text-slate-400 text-sm flex items-center gap-2"><span class="text-slate-500">${ICO.calendar}</span>${dates}</p>
+                    <div class="mt-2 flex items-center gap-2 flex-wrap">${statusBadge}</div>
+                </div>
+                <div class="flex items-center gap-1.5 flex-shrink-0">${openBtn}${editBtn}${lockBtn}${delBtn}</div>
+            </div>
+        </div>`;
+    }).join('');
+    const addBtn = `<button class="btn-add" onclick="openNewTripModal()" title="Añadir viaje">${ICO.plus}<span class="mt-2 text-sm font-medium">Añadir viaje</span></button>`;
+    return `<div class="fade-in">
+        <header class="text-center mb-8">
+            <h2 class="text-3xl font-bold text-white mb-2">Mis viajes</h2>
+            <p class="text-slate-400 text-sm max-w-xl mx-auto">Abre, edita o elimina cualquiera de tus viajes. Los viajes finalizados se bloquean automáticamente; pulsa el candado para desbloquearlos y hacer cambios.</p>
+        </header>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">${rows}${addBtn}</div>
+    </div>`;
+}
+
+// Eliminar un viaje por id (no necesariamente el activo).
+function deleteTrip(id) {
+    if (!isAdmin()) { showToast('⚠ Solo el administrador puede eliminar viajes', 2500); return; }
+    if (App.trips.length < 2) { alert('Debe quedar al menos un viaje guardado.'); return; }
+    const t = App.trips.find(x => x.id === id);
+    if (!t) return;
+    if (!confirm(`¿Eliminar el viaje "${(t.data.config.title) || ''}"?\n\nEsta acción no se puede deshacer.`)) return;
+    // Si borramos el activo, cambiar al primero disponible antes de borrar.
+    if (id === App.activeTripId) {
+        const next = App.trips.find(x => x.id !== id);
+        db.ref(ROOT).update({ ['trips/' + id]: null, activeTripId: next.id });
+    } else {
+        db.ref(ROOT + '/trips/' + id).remove();
+    }
+}
+
 /* ---------- WEATHER ---------- */
 function getWeatherDesc(code) {
     const d = {0:'Despejado',1:'Poco nublado',2:'Nubes parciales',3:'Nublado',45:'Niebla',51:'Llovizna',61:'Lluvia',80:'Chubascos',95:'Tormenta'};
@@ -2060,18 +2206,8 @@ function nextPlanDate() {
 }
 
 function renderTripSelector() {
-    const sel = document.getElementById('trip-select');
-    if (!sel) return;
-    sel.innerHTML = '';
-    App.trips.forEach(t => {
-        const o = document.createElement('option');
-        o.value = t.id;
-        const fmt = dt => dt ? new Date(dt + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '';
-        const dates = t.startDate && t.endDate ? ` (${fmt(t.startDate)} – ${fmt(t.endDate)})` : '';
-        o.textContent = (t.data.config.title || 'Viaje') + dates;
-        o.selected = t.id === App.activeTripId;
-        sel.appendChild(o);
-    });
+    // El selector desplegable se ha eliminado del navbar. El botón de
+    // eliminar viaje se gestiona ahora desde la pestaña 'Viajes'.
     const del = document.getElementById('btn-del-trip');
     if (del) del.classList.toggle('hidden', App.trips.length < 2 || !isAdmin());
 }
@@ -2576,8 +2712,7 @@ function renderApp() {
     document.getElementById('main-content').classList.remove('hidden');
     document.body.classList.toggle('role-user', !isAdmin());
     document.getElementById('nav-appname').textContent = S.config.appName || 'Mi Viaje';
-    // El chip de versión está dentro del navbar: ahora que es visible,
-    // interrogar al SW por si la consulta inicial no encontró el elemento.
+    applyTripLock(); // aplicar bloqueo del viaje activo (finalizado)
     askSwVersion();
     renderUserChip();
     renderTabs();
@@ -2596,62 +2731,78 @@ firebase.auth().signInAnonymously().catch(function (err) {
 setTimeout(tryStart, 4000);
 
 // Service Worker (PWA): instala la app, habilita offline y expone la versión.
-// El chip #app-version se rellena dinámicamente preguntando al SW activo.
+// El chip #app-version se rellena preguntando al SW activo.
 function setVersionChip(v) {
     const chip = document.getElementById('app-version');
     if (!chip) return;
-    if (v) {
-        chip.textContent = 'v' + v;
-        chip.classList.remove('hidden');
-    } else {
-        chip.textContent = 'v—';
-        chip.classList.remove('hidden');
-    }
+    chip.textContent = v ? ('v' + v) : 'v—';
+    chip.classList.remove('hidden');
 }
+// Reintentos cíclicos para cubrir el caso en que el SW aún no es
+// controller (primera carga) o el controllerchange llega antes de
+// registrar el listener.
+let _swVersionAttempts = 0;
+let _swVersionTimer = null;
 function askSwVersion() {
+    if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
     if (!('serviceWorker' in navigator)) { setVersionChip(null); return; }
-    if (!navigator.serviceWorker.controller) {
-        // El SW aún no es controller (primera carga). No mostrar 'v—':
-        // esperar a que controllerchange dispare una nueva llamada.
-        // Reintento de seguridad por si el evento llegó antes del listener.
-        setTimeout(askSwVersion, 800);
-        return;
+    if (navigator.serviceWorker.controller) {
+        // Hay controller: preguntar y esperar respuesta (con reintento
+        // por si el mensaje se pierde).
+        navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
+        _swVersionAttempts++;
+        if (_swVersionAttempts < 12) {
+            _swVersionTimer = setTimeout(askSwVersion, 500);
+        }
+    } else {
+        // Aún no hay controller: reintentar hasta que llegue.
+        _swVersionAttempts++;
+        if (_swVersionAttempts < 20) {
+            _swVersionTimer = setTimeout(askSwVersion, 500);
+        } else {
+            setVersionChip(null);
+        }
     }
-    navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
 }
 // El SW responde con { type: 'APP_VERSION', version, cacheName }
-navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', function (event) {
-    const d = event.data || {};
-    if (d.type === 'APP_VERSION' && d.version) {
-        setVersionChip(d.version);
-    }
-});
-// Si el SW cambia (nueva versión tras recargar), volver a preguntar.
-navigator.serviceWorker && navigator.serviceWorker.addEventListener('controllerchange', askSwVersion);
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function (event) {
+        const d = event.data || {};
+        if (d.type === 'APP_VERSION' && d.version) {
+            // Cancelar reintentos: ya tenemos la versión.
+            if (_swVersionTimer) { clearTimeout(_swVersionTimer); _swVersionTimer = null; }
+            _swVersionAttempts = 999;
+            setVersionChip(d.version);
+        }
+    });
+    // Si el SW cambia (nueva versión o primera activación), reiniciar
+    // el ciclo de consulta.
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+        _swVersionAttempts = 0;
+        askSwVersion();
+    });
+}
 
+// Registrar el SW lo antes posible (sin esperar a 'load') para que
+// tome el control cuanto antes y podamos pedirle la versión.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js').then(function (reg) {
-            // Si ya hay un SW activo, pedir la versión de inmediato.
-            askSwVersion();
-            // Escuchar actualizaciones del SW: cuando llegue uno nuevo,
-            // avisar al usuario para que recargue.
-            reg.addEventListener('updatefound', function () {
-                const nw = reg.installing;
-                if (!nw) return;
-                nw.addEventListener('statechange', function () {
-                    if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-                        showToast('Nueva versión disponible · recarga para actualizar', 5000);
-                    }
-                });
+    navigator.serviceWorker.register('./sw.js').then(function (reg) {
+        askSwVersion();
+        // Avisar de nuevas versiones disponibles.
+        reg.addEventListener('updatefound', function () {
+            const nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', function () {
+                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                    showToast('Nueva versión disponible · recarga para actualizar', 5000);
+                }
             });
-        }).catch(function (err) {
-            console.warn('Service Worker no registrado:', err);
-            setVersionChip(null);
         });
+    }).catch(function (err) {
+        console.warn('Service Worker no registrado:', err);
+        setVersionChip(null);
     });
 } else {
-    // Sin SW (HTTP plano sin localhost): mostrar chip en gris.
     setVersionChip(null);
 }
 </script>
