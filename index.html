@@ -1612,8 +1612,8 @@ function viewTrips() {
             : '';
         // Botón principal de abrir/ir: con texto, más explícito.
         const openBtn = isActive
-            ? `<button onclick="switchTab('home')" class="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors" title="Ya estás en este viaje · ir a Inicio">Ir a Inicio ${ICO.arrow}</button>`
-            : `<button onclick="switchTrip('${t.id}'); switchTab('home')" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-md" title="Abrir este viaje">${ICO.arrow} Abrir viaje</button>`;
+            ? `<button onclick="event.stopPropagation(); switchTab('home')" class="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors" title="Ya estás en este viaje · ir a Inicio">Ir a Inicio ${ICO.arrow}</button>`
+            : `<button onclick="event.stopPropagation(); switchTrip('${t.id}'); setTimeout(function(){switchTab('home')},50)" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-md" title="Abrir este viaje">${ICO.arrow} Abrir viaje</button>`;
         // Botones de acción: event.stopPropagation para que no abran el viaje.
         const editBtn = `<button onclick="event.stopPropagation(); switchTrip('${t.id}'); setTimeout(()=>openEditModal('tripInfo',0),50)" class="btn-icon btn-edit" title="Editar info del viaje">${ICO.edit}</button>`;
         const lockBtn = finished
@@ -1626,7 +1626,7 @@ function viewTrips() {
             : '';
         // Toda la tarjeta es clicable para abrir el viaje (salvo que ya
         // sea el activo). Los botones de acción usan stopPropagation.
-        const cardClick = isActive ? '' : ` onclick="switchTrip('${t.id}'); switchTab('home')"`;
+        const cardClick = isActive ? '' : ` onclick="switchTrip('${t.id}'); setTimeout(function(){switchTab('home')},50)"`;
         const cardCursor = isActive ? '' : 'cursor-pointer hover:border-blue-500/60 hover:bg-white/10';
         const activeGlow = isActive ? 'ring-2 ring-blue-500/40 bg-blue-900/20' : '';
         return `<div class="border ${isActive ? 'border-blue-500/60' : 'border-white/10'} rounded-2xl p-5 shadow-lg fade-in transition-all ${cardCursor} ${activeGlow}"${cardClick}>
@@ -1639,7 +1639,7 @@ function viewTrips() {
                     <p class="text-slate-400 text-sm flex items-center gap-2"><span class="text-slate-500">${ICO.calendar}</span>${dates}</p>
                     <div class="mt-2 flex items-center gap-2 flex-wrap">${statusBadge}</div>
                 </div>
-                <div class="flex items-center gap-1.5 flex-shrink-0" onclick="event.stopPropagation()">${openBtn}${editBtn}${lockBtn}${delBtn}</div>
+                <div class="flex items-center gap-1.5 flex-shrink-0">${openBtn}${editBtn}${lockBtn}${delBtn}</div>
             </div>
         </div>`;
     }).join('');
