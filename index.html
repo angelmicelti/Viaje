@@ -797,12 +797,10 @@ function tripSubtitle() {
 }
 
 function defaultTripData(name, start, end) {
+    // Una entrada vacía por fecha. Las entradas de Palma del Río al
+    // inicio y al final se añaden automáticamente cuando el usuario
+    // rellena el primer/último destino (ver ensureHomeCityBookends).
     const days = eachDay(start, end).map(dt => ({ id: 't-' + uid(), location: '', date: dt }));
-    // El viaje empieza y termina siempre en la ciudad de origen
-    if (days.length) {
-        days[0].location = HOME_CITY;
-        days[days.length - 1].location = HOME_CITY;
-    }
     return {
         config: {
             title: name,
@@ -1414,6 +1412,9 @@ function renderView() {
 
 /* ---------- HOME ---------- */
 // Asigna la ciudad de un día: si es nueva, se añade y geocodifica automáticamente
+// Asigna la ciudad de un día: si es nueva, se añade y geocodifica automáticamente.
+// Además, asegura automáticamente que Palma del Río aparezca al inicio y al
+// final del viaje cuando el usuario rellena el primer/último destino.
 function setPlanDayLocation(i, name) {
     if (!isAdmin()) { showToast('⚠ Solo el administrador puede editar', 2500); return; }
     name = (name || '').trim();
@@ -1431,8 +1432,42 @@ function setPlanDayLocation(i, name) {
             }
         });
     }
+    // Automatización: asegurar Palma del Río al inicio y al final.
+    ensureHomeCityBookends();
     syncItinerary();
     saveToFirebase(); renderView(); scheduleRouteFetch();
+}
+
+// Garantiza que el viaje empiece y termine por Palma del Río.
+// - Si hay al menos un destino (no Palma) en el primer día del viaje y no
+//   hay una entrada de Palma ese mismo día, la añade.
+// - Igual para el último día del viaje.
+// No duplica entradas si ya existen.
+function ensureHomeCityBookends() {
+    if (!S.travelPlan || !S.travelPlan.length) return;
+    // Ordenar por fecha para identificar primer y último día.
+    const sorted = S.travelPlan.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const firstDate = sorted[0].date;
+    const lastDate = sorted[sorted.length - 1].date;
+    if (!firstDate) return;
+    // Ciudades asignadas el primer día.
+    const firstDayCities = S.travelPlan.filter(d => d.date === firstDate).map(d => d.location).filter(Boolean);
+    // Si hay algún destino que no sea Palma en el primer día, y no hay
+    // entrada de Palma ese día, añadirla.
+    const hasNonHomeFirst = firstDayCities.some(c => c !== HOME_CITY);
+    const hasHomeFirst = firstDayCities.some(c => c === HOME_CITY);
+    if (hasNonHomeFirst && !hasHomeFirst) {
+        S.travelPlan.push({ id: 't-' + uid(), location: HOME_CITY, date: firstDate });
+    }
+    // Solo añadir al final si el último día es distinto del primero.
+    if (lastDate && lastDate !== firstDate) {
+        const lastDayCities = S.travelPlan.filter(d => d.date === lastDate).map(d => d.location).filter(Boolean);
+        const hasNonHomeLast = lastDayCities.some(c => c !== HOME_CITY);
+        const hasHomeLast = lastDayCities.some(c => c === HOME_CITY);
+        if (hasNonHomeLast && !hasHomeLast) {
+            S.travelPlan.push({ id: 't-' + uid(), location: HOME_CITY, date: lastDate });
+        }
+    }
 }
 
 function addPlanDay() {
@@ -1499,13 +1534,26 @@ function viewHome() {
         : '<span class="text-slate-500 italic">Itinerario pendiente: asigna ciudades a los días de tu plan</span>';
 
     // --- Filas del plan, localidades y pestañas (contenido de los paneles) ---
-    const tpRows = S.travelPlan.map((d, i) => `
+    // Agrupar visualmente por fecha: cuando dos filas consecutivas (tras
+    // ordenar por fecha) comparten fecha, la segunda muestra un badge
+    // 'mismo día' en lugar de repetir el input de fecha.
+    const sortedIdx = S.travelPlan.map((_, i) => i).sort((a, b) => (S.travelPlan[a].date || '').localeCompare(S.travelPlan[b].date || ''));
+    let prevDate = null;
+    const tpRows = sortedIdx.map(i => {
+        const d = S.travelPlan[i];
+        const sameDay = d.date && d.date === prevDate;
+        prevDate = d.date || prevDate;
+        const dateCell = sameDay
+            ? `<div class="sm:w-40 flex items-center gap-1 text-xs text-blue-300 bg-blue-900/30 border border-blue-500/30 rounded-lg px-2 py-2"><span>↑ mismo día</span></div>`
+            : `<input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; syncItinerary(); saveToFirebase(); renderView(); scheduleRouteFetch()">`;
+        return `
         <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
-            <input type="date" class="edit-input !w-auto sm:w-40" value="${d.date}" onchange="S.travelPlan[${i}].date=this.value; syncItinerary(); saveToFirebase(); scheduleRouteFetch()">
+            ${dateCell}
             <input class="edit-input flex-1" list="cities-dl" value="${esc(d.location)}" placeholder="¿En qué ciudad estás este día?" onchange="setPlanDayLocation(${i}, this.value)">
             <button class="btn-icon btn-edit" onclick="openEditModal('planDay', ${i})" title="Editar día">${ICO.edit}</button>
             <button class="btn-icon btn-delete" onclick="S.travelPlan.splice(${i},1); syncItinerary(); saveToFirebase(); renderView(); scheduleRouteFetch()" title="Quitar día">${ICO.trash}</button>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 
     const locRows = Object.entries(S.locations).map(([city, coord]) => `
         <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 fade-in">
