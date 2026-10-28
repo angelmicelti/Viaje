@@ -1607,20 +1607,29 @@ function viewTrips() {
                 ? `<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-300 border border-amber-500/40">${ICO.lock} Finalizado · bloqueado</span>`
                 : `<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-300 border border-emerald-500/40">${ICO.unlock} Finalizado · desbloqueado</span>`)
             : `<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-900/30 text-blue-300 border border-blue-500/40">${ICO.calendar} Próximo</span>`;
-        const activeBadge = isActive ? `<span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-600/20 text-blue-300 border border-blue-500/40">Activo</span>` : '';
+        const activeBadge = isActive
+            ? `<span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-600 text-white border border-blue-400 font-semibold">● Activo · viéndose ahora</span>`
+            : '';
+        // Botón principal de abrir/ir: con texto, más explícito.
         const openBtn = isActive
-            ? `<button onclick="switchTab('home')" class="btn-icon bg-slate-800/80 border border-slate-600 hover:border-blue-400 text-slate-300" title="Ya abierto · ir a Inicio">${ICO.home}</button>`
-            : `<button onclick="switchTrip('${t.id}'); switchTab('home')" class="btn-icon bg-blue-600/80 hover:bg-blue-500 text-white" title="Abrir este viaje">${ICO.arrow}</button>`;
-        const editBtn = `<button onclick="switchTrip('${t.id}'); setTimeout(()=>openEditModal('tripInfo',0),50)" class="btn-icon btn-edit" title="Editar info del viaje">${ICO.edit}</button>`;
+            ? `<button onclick="switchTab('home')" class="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors" title="Ya estás en este viaje · ir a Inicio">Ir a Inicio ${ICO.arrow}</button>`
+            : `<button onclick="switchTrip('${t.id}'); switchTab('home')" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-md" title="Abrir este viaje">${ICO.arrow} Abrir viaje</button>`;
+        // Botones de acción: event.stopPropagation para que no abran el viaje.
+        const editBtn = `<button onclick="event.stopPropagation(); switchTrip('${t.id}'); setTimeout(()=>openEditModal('tripInfo',0),50)" class="btn-icon btn-edit" title="Editar info del viaje">${ICO.edit}</button>`;
         const lockBtn = finished
             ? (locked
-                ? `<button onclick="switchTrip('${t.id}'); setTimeout(unlockActiveTrip,50)" class="btn-icon btn-unlock bg-amber-600/80 hover:bg-amber-500 text-white" title="Desbloquear para edición">${ICO.unlock}</button>`
-                : `<button onclick="switchTrip('${t.id}'); setTimeout(lockActiveTrip,50)" class="btn-icon btn-unlock bg-slate-800/80 border border-slate-600 hover:border-amber-400 text-amber-300" title="Volver a bloquear">${ICO.lock}</button>`)
+                ? `<button onclick="event.stopPropagation(); switchTrip('${t.id}'); setTimeout(unlockActiveTrip,50)" class="btn-icon btn-unlock bg-amber-600/80 hover:bg-amber-500 text-white" title="Desbloquear para edición">${ICO.unlock}</button>`
+                : `<button onclick="event.stopPropagation(); switchTrip('${t.id}'); setTimeout(lockActiveTrip,50)" class="btn-icon btn-unlock bg-slate-800/80 border border-slate-600 hover:border-amber-400 text-amber-300" title="Volver a bloquear">${ICO.lock}</button>`)
             : '';
         const delBtn = (App.trips.length > 1)
-            ? `<button onclick="deleteTrip('${t.id}')" class="btn-icon btn-delete" title="Eliminar viaje">${ICO.trash}</button>`
+            ? `<button onclick="event.stopPropagation(); deleteTrip('${t.id}')" class="btn-icon btn-delete" title="Eliminar viaje">${ICO.trash}</button>`
             : '';
-        return `<div class="bg-white/5 border ${isActive ? 'border-blue-500/50' : 'border-white/10'} rounded-2xl p-5 shadow-lg fade-in">
+        // Toda la tarjeta es clicable para abrir el viaje (salvo que ya
+        // sea el activo). Los botones de acción usan stopPropagation.
+        const cardClick = isActive ? '' : ` onclick="switchTrip('${t.id}'); switchTab('home')"`;
+        const cardCursor = isActive ? '' : 'cursor-pointer hover:border-blue-500/60 hover:bg-white/10';
+        const activeGlow = isActive ? 'ring-2 ring-blue-500/40 bg-blue-900/20' : '';
+        return `<div class="border ${isActive ? 'border-blue-500/60' : 'border-white/10'} rounded-2xl p-5 shadow-lg fade-in transition-all ${cardCursor} ${activeGlow}"${cardClick}>
             <div class="flex items-start justify-between gap-3 flex-wrap">
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 flex-wrap mb-1">
@@ -1630,7 +1639,7 @@ function viewTrips() {
                     <p class="text-slate-400 text-sm flex items-center gap-2"><span class="text-slate-500">${ICO.calendar}</span>${dates}</p>
                     <div class="mt-2 flex items-center gap-2 flex-wrap">${statusBadge}</div>
                 </div>
-                <div class="flex items-center gap-1.5 flex-shrink-0">${openBtn}${editBtn}${lockBtn}${delBtn}</div>
+                <div class="flex items-center gap-1.5 flex-shrink-0" onclick="event.stopPropagation()">${openBtn}${editBtn}${lockBtn}${delBtn}</div>
             </div>
         </div>`;
     }).join('');
@@ -1638,7 +1647,7 @@ function viewTrips() {
     return `<div class="fade-in">
         <header class="text-center mb-8">
             <h2 class="text-3xl font-bold text-white mb-2">Mis viajes</h2>
-            <p class="text-slate-400 text-sm max-w-xl mx-auto">Abre, edita o elimina cualquiera de tus viajes. Los viajes finalizados se bloquean automáticamente; pulsa el candado para desbloquearlos y hacer cambios.</p>
+            <p class="text-slate-400 text-sm max-w-xl mx-auto">Pulsa cualquier viaje para abrirlo en pantalla. Los viajes finalizados se bloquean automáticamente; pulsa el candado para desbloquearlos y hacer cambios.</p>
         </header>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">${rows}${addBtn}</div>
     </div>`;
